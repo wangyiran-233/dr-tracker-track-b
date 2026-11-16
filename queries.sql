@@ -66,7 +66,8 @@ ORDER BY c.patient_id, period DESC, d.cinv_phase;
 
 -- name: pre_visit_snapshot
 -- The "30 seconds before walking in" view: last 7 days per patient, relative
--- to each patient's latest report. Sorted so patients needing attention come first.
+-- to each patient's latest report. Sorted so patients needing attention come first:
+-- open red flags, then other open (non-info) flags, then weight alert, then worst nausea.
 WITH latest AS (
     SELECT patient_id, MAX(date(submitted_at)) AS as_of FROM raw_reports GROUP BY patient_id
 ),
@@ -95,10 +96,12 @@ SELECT l.patient_id,
        (SELECT t.below_alert_line FROM v_weight_trend t
          WHERE t.patient_id = l.patient_id ORDER BY t.measured_date DESC LIMIT 1)                  AS below_weight_alert,
        (SELECT COUNT(*) FROM review_flags f
+         WHERE f.patient_id = l.patient_id AND f.status = 'open' AND f.flag_type = 'red_flag')     AS open_red_flags,
+       (SELECT COUNT(*) FROM review_flags f
          WHERE f.patient_id = l.patient_id AND f.status = 'open' AND f.severity <> 'info')         AS open_flags
 FROM latest l
 JOIN patients p USING (patient_id)
-ORDER BY open_flags DESC, below_weight_alert DESC, worst_nausea_0_4 DESC;
+ORDER BY open_red_flags DESC, open_flags DESC, below_weight_alert DESC, worst_nausea_0_4 DESC;
 
 
 -- name: review_queue
