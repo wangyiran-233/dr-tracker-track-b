@@ -40,6 +40,8 @@ LATEST_PROMPT_VERSION = "v2"
 # llama-3.3-70b-versatile is no longer served (404 model_not_found).
 DEFAULT_MODEL = "openai/gpt-oss-120b"
 DEFAULT_REASONING_EFFORT = "medium"     # gpt-oss / qwen3 are reasoning models: low | medium | high
+# All cache entries written before effort became part of the cache key used this effort.
+LEGACY_REASONING_EFFORT = "medium"
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_PATH = ROOT / "data" / "llm_cache.json"
 
@@ -194,10 +196,19 @@ class GroqExtractor:
     def available(self) -> bool:
         return self.client is not None
 
+    def _is_reasoning_model(self) -> bool:
+        return self.model.startswith(("openai/gpt-oss", "qwen/"))
+
     def _key(self, text: str, submitted_at: str, context: str | None = None) -> str:
+        """Cache key = everything that changes the model's answer.
+        Backward compatible: entries written before reasoning effort was part
+        of the key were all produced at LEGACY_REASONING_EFFORT, so that
+        effort adds no suffix and those entries stay valid."""
         raw = f"{self.model}|{self.prompt_version}|{submitted_at}|{text}"
         if context:          # v1 keys (no context) stay unchanged
             raw += f"|ctx:{context}"
+        if self._is_reasoning_model() and self.reasoning_effort != LEGACY_REASONING_EFFORT:
+            raw += f"|effort:{self.reasoning_effort}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
     def _load_cache(self) -> dict[str, str]:
@@ -256,7 +267,7 @@ class GroqExtractor:
 
         import groq
         extra = {}
-        if self.model.startswith(("openai/gpt-oss", "qwen/")):
+        if self._is_reasoning_model():
             extra = {"reasoning_effort": self.reasoning_effort, "include_reasoning": False}
         messages = [{"role": "system", "content": PROMPTS[self.prompt_version]},
                     {"role": "user", "content": self._user_msg(text, submitted_at, context)}]
