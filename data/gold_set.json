@@ -1,0 +1,1647 @@
+{
+  "meta": {
+    "description": "Expected parser output for 30 reports. 'hand_annotated' labels were written case by case; 'generator' labels come from the synthetic truth used to render the text.",
+    "conventions": {
+      "scope": "Only the 5 CINV symptoms are extracted: nausea, vomiting, retching, appetite_loss, unable_to_keep_fluids.",
+      "severity_level": "0-4 = none/mild/moderate/severe/very severe. NULL when the patient gives no intensity word (e.g. 'nausea is worse').",
+      "nrs_to_level": "Questionnaire 0-10 kept as severity_nrs; severity_level derived as 0->0, 1-3->1, 4-6->2, 7-8->3, 9-10->4 (bands follow a commonly used mild/moderate/severe split; the 7-8 vs 9-10 split is a project convention).",
+      "absent": "presence='absent' => severity_level 0; for vomiting/retching counts 0/0.",
+      "counts": "'once' 1/1, 'twice' 2/2, 'a few times' 2/4, present but no number => 1/NULL (at least one), implausible numbers => 1/NULL + implausible_value flag.",
+      "time": "occurred_date is resolved from relative words using submitted_at. 'overnight' belongs to the date the night started. Questionnaire answers cover the submission day and use part_of_day='all_day'. No time words => 'unknown'.",
+      "questionnaire_prn": "prn_antiemetic_doses_24h maps to the patient's active PRN antiemetic.",
+      "fluids": "kept_fluids_down: yes => unable_to_keep_fluids absent; partly => present, severity NULL; no => present + red_flag.",
+      "flags": "'flags' are detectable from the report alone; 'cross_report_flags' need other reports (conflict / duplicate checker)."
+    },
+    "scored_symptom_fields": [
+      "symptom_code",
+      "presence",
+      "severity_level",
+      "severity_nrs",
+      "episode_count_min",
+      "episode_count_max",
+      "occurred_date",
+      "part_of_day",
+      "related_med",
+      "med_relation"
+    ]
+  },
+  "reports": [
+    {
+      "report_id": "R0003",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-09T11:00:00",
+      "source": "free_text",
+      "input": "Took my ondansetron at 8 this morning but threw it up about 20 minutes later. Took another at 10 and that one stayed down.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "vomited_up_dose"
+      ],
+      "notes": "Two intake rows: one vomited up, one taken.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 1,
+            "episode_count_max": 1,
+            "occurred_date": "2026-09-09",
+            "part_of_day": "morning",
+            "related_med": "ondansetron",
+            "med_relation": "vomited_up_dose"
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "ondansetron",
+            "intake_status": "vomited_up",
+            "dose_count": 1,
+            "taken_date": "2026-09-09",
+            "part_of_day": "morning"
+          },
+          {
+            "med": "ondansetron",
+            "intake_status": "taken",
+            "dose_count": 1,
+            "taken_date": "2026-09-09",
+            "part_of_day": "morning"
+          }
+        ],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0005",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-10T08:10:00",
+      "source": "free_text",
+      "input": "Rough night. Threw up a few times after midnight, lost count honestly. Still a bit queasy this morning.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "vague_count",
+        "relative_time"
+      ],
+      "notes": "'a few times' -> 2-4. 'After midnight' in a morning report = the night that started the previous day (convention). 'a bit queasy' -> mild.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 2,
+            "episode_count_max": 4,
+            "occurred_date": "2026-09-09",
+            "part_of_day": "overnight",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-10",
+            "part_of_day": "morning",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0007",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-10T20:15:00",
+      "source": "free_text",
+      "input": "Threw up once today after dinner, nausea moderate.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "correction_target"
+      ],
+      "notes": "Will be corrected by S6b.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 1,
+            "episode_count_max": 1,
+            "occurred_date": "2026-09-10",
+            "part_of_day": "evening",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 2,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-10",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0009",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-11T08:30:00",
+      "source": "free_text",
+      "input": "Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "correction"
+      ],
+      "notes": "Supersedes the vomiting event from S6a (old row -> status 'superseded', not deleted).",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 3,
+            "episode_count_max": 3,
+            "occurred_date": "2026-09-10",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": "R0007"
+      }
+    },
+    {
+      "report_id": "R0011",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-11T19:55:00",
+      "source": "free_text",
+      "input": "Still felt unbearably nauseous all day even after taking Zofran. Threw up 4 times this morning. Not much appetite. Took Zofran 3 times today.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 4,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "all_day",
+            "related_med": "ondansetron",
+            "med_relation": "despite_taking"
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 4,
+            "episode_count_max": 4,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "morning",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "ondansetron",
+            "intake_status": "taken",
+            "dose_count": 3,
+            "taken_date": "2026-09-11",
+            "part_of_day": "unknown"
+          }
+        ],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0012",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-11T19:55:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 4,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 3,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      },
+      "label_source": "generator",
+      "case_tags": [
+        "routine"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 2,
+            "severity_nrs": 4,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": 3,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-11",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0026",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-14T19:20:00",
+      "source": "free_text",
+      "input": "Still really nauseous even after taking Zofran at lunch. No vomiting.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "despite_medication",
+        "brand_name"
+      ],
+      "notes": "'really nauseous' -> severe (3). Zofran -> ondansetron.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 3,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-14",
+            "part_of_day": "afternoon",
+            "related_med": "ondansetron",
+            "med_relation": "despite_taking"
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-09-14",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "ondansetron",
+            "intake_status": "taken",
+            "dose_count": 1,
+            "taken_date": "2026-09-14",
+            "part_of_day": "afternoon"
+          }
+        ],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0035",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-16T20:30:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 5,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 6,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 1,
+        "weight_kg": null,
+        "comments": "Threw up once after lunch, forgot to count it above, sorry."
+      },
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "intra_report_conflict"
+      ],
+      "notes": "Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 2,
+            "severity_nrs": 5,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 1,
+            "episode_count_max": 1,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 2,
+            "severity_nrs": 6,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "ondansetron",
+            "intake_status": "taken",
+            "dose_count": 1,
+            "taken_date": "2026-09-16",
+            "part_of_day": "all_day"
+          }
+        ],
+        "weights": [],
+        "flags": [
+          "intra_report_conflict"
+        ],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0036",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-16T20:40:00",
+      "source": "free_text",
+      "input": "Felt kind of off today, not sure if it's nausea or just tired. Ate okay.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "vague_presence"
+      ],
+      "notes": "Patient is unsure -> presence 'uncertain', severity NULL. Must not become mild nausea.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "uncertain",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-16",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0043",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-17T21:37:00",
+      "source": "free_text",
+      "input": "Feeling pretty good today, no nausea or vomiting.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-17",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-09-17",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0049",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-19T19:29:00",
+      "source": "free_text",
+      "input": "Felt mildly nauseous tonight.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-19",
+            "part_of_day": "evening",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0051",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-20T09:00:00",
+      "source": "free_text",
+      "input": "Forgot my olanzapine last night. Nausea is worse this morning.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "missed_dose",
+        "relative_severity"
+      ],
+      "notes": "'worse' is relative, not a level -> severity NULL. Missed dose dated the previous evening.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-20",
+            "part_of_day": "morning",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "olanzapine",
+            "intake_status": "missed",
+            "dose_count": 1,
+            "taken_date": "2026-09-19",
+            "part_of_day": "evening"
+          }
+        ],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0055",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-21T08:05:00",
+      "source": "free_text",
+      "input": "Weighed myself this morning: 72.1 kg. Appetite still poor.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "weight_in_text"
+      ],
+      "notes": "Weight goes to weight_measurements (patient_reported).",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-21",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [
+          {
+            "weight_kg": 72.1,
+            "measured_date": "2026-09-21"
+          }
+        ],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0067",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-24T19:45:00",
+      "source": "free_text",
+      "input": "Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "unmapped_medication"
+      ],
+      "notes": "Likely ondansetron ODT, but the parser must not guess: med NULL + flag for review. Nausea present, no intensity given.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-24",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": null,
+            "intake_status": "taken",
+            "dose_count": 1,
+            "taken_date": "2026-09-24",
+            "part_of_day": "afternoon"
+          }
+        ],
+        "weights": [],
+        "flags": [
+          "unmapped_medication"
+        ],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0077",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-26T20:10:00",
+      "source": "free_text",
+      "input": "Day before yesterday was the worst, vomited 4 times. Today just mild nausea.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "relative_time"
+      ],
+      "notes": "Vomiting belongs to day-2 relative to submission.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 4,
+            "episode_count_max": 4,
+            "occurred_date": "2026-09-24",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-26",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0087",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-29T19:05:00",
+      "source": "free_text",
+      "input": "No throwing up today. Nausea pretty much gone, maybe a tiny bit after breakfast.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "negation",
+        "hedged_severity"
+      ],
+      "notes": "'pretty much gone, maybe a tiny bit' -> present, mild, morning.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-09-29",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-29",
+            "part_of_day": "morning",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0089",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-29T20:50:00",
+      "source": "free_text",
+      "input": "Threw up like a hundred times today, it just would not stop.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "implausible_value"
+      ],
+      "notes": "Hyperbole: do not store 100. At least 1, upper bound unknown, flag for follow-up.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 1,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-29",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [
+          "implausible_value"
+        ],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0093",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-30T19:30:00",
+      "source": "free_text",
+      "input": "Vomited 3 times this afternoon, could barely get off the couch.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "cross_report_conflict"
+      ],
+      "notes": "First half of a same-day conflict (see S5b).",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 3,
+            "episode_count_max": 3,
+            "occurred_date": "2026-09-30",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0095",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-30T21:00:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 7,
+        "vomit_episodes_24h": 1,
+        "appetite_loss_0_10": 8,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 2,
+        "weight_kg": null,
+        "comments": null
+      },
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "cross_report_conflict"
+      ],
+      "notes": "Questionnaire says 1 vomit in 24h, earlier text said 3 this afternoon. Daily view: max(1, 3) = 3 with has_open_conflict.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 3,
+            "severity_nrs": 7,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-30",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 1,
+            "episode_count_max": 1,
+            "occurred_date": "2026-09-30",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 3,
+            "severity_nrs": 8,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-30",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-09-30",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [
+          {
+            "med": "ondansetron",
+            "intake_status": "taken",
+            "dose_count": 2,
+            "taken_date": "2026-09-30",
+            "part_of_day": "all_day"
+          }
+        ],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [
+          "cross_report_conflict"
+        ],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0103",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-02T20:21:00",
+      "source": "free_text",
+      "input": "Felt mildly nauseous this afternoon.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-02",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0117",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-05T20:00:00",
+      "source": "free_text",
+      "input": "Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "severity_mismatch",
+        "red_flag"
+      ],
+      "notes": "Store 'mild' as said, but flag the mismatch; can't keep fluids down is surfaced as a red flag (dashboard prominence, not a diagnosis).",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-05",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-05",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "present",
+            "severity_level": null,
+            "severity_nrs": null,
+            "episode_count_min": 4,
+            "episode_count_max": 4,
+            "occurred_date": "2026-10-05",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [
+          "severity_mismatch",
+          "red_flag"
+        ],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0126",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-07T21:14:00",
+      "source": "free_text",
+      "input": "Felt slightly queasy after dinner. No vomiting. Appetite is okay.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-07",
+            "part_of_day": "evening",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-07",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-07",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0133",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-09T14:02:00",
+      "source": "free_text",
+      "input": "Mild nausea after lunch, no vomiting.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "duplicate_original"
+      ],
+      "notes": "Original of a double submission.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-09",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-09",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0134",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-09T14:03:00",
+      "source": "free_text",
+      "input": "Mild nausea after lunch, no vomiting.",
+      "label_source": "hand_annotated",
+      "case_tags": [
+        "duplicate_report"
+      ],
+      "notes": "Same text one minute later. Flag as duplicate; daily view max-rule also prevents double counting.",
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-09",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-09",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [
+          "duplicate_report"
+        ],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0148",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-12T21:25:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 78.2,
+        "comments": null
+      },
+      "label_source": "generator",
+      "case_tags": [
+        "routine"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": 2,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-12",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-12",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": 2,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-12",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-12",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [
+          {
+            "weight_kg": 78.2,
+            "measured_date": "2026-10-12"
+          }
+        ],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0152",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-13T21:40:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      },
+      "label_source": "generator",
+      "case_tags": [
+        "routine"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": 0,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-13",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-13",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": 1,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-13",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-13",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0154",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-14T19:40:00",
+      "source": "free_text",
+      "input": "Felt a little nauseous after lunch.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "evening"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-14",
+            "part_of_day": "afternoon",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0169",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-17T19:46:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      },
+      "label_source": "generator",
+      "case_tags": [
+        "routine"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": 0,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-17",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-17",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": 0,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-17",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-17",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0175",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-19T09:36:00",
+      "source": "free_text",
+      "input": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "label_source": "generator",
+      "case_tags": [
+        "routine",
+        "next_morning"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-18",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-18",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-18",
+            "part_of_day": "unknown",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    },
+    {
+      "report_id": "R0177",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-19T20:07:00",
+      "source": "questionnaire",
+      "input": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 78.4,
+        "comments": null
+      },
+      "label_source": "generator",
+      "case_tags": [
+        "routine"
+      ],
+      "notes": null,
+      "expected": {
+        "symptom_events": [
+          {
+            "symptom_code": "nausea",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": 0,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-19",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "vomiting",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": 0,
+            "episode_count_max": 0,
+            "occurred_date": "2026-10-19",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "appetite_loss",
+            "presence": "present",
+            "severity_level": 1,
+            "severity_nrs": 2,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-19",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          },
+          {
+            "symptom_code": "unable_to_keep_fluids",
+            "presence": "absent",
+            "severity_level": 0,
+            "severity_nrs": null,
+            "episode_count_min": null,
+            "episode_count_max": null,
+            "occurred_date": "2026-10-19",
+            "part_of_day": "all_day",
+            "related_med": null,
+            "med_relation": null
+          }
+        ],
+        "intake_events": [],
+        "weights": [
+          {
+            "weight_kg": 78.4,
+            "measured_date": "2026-10-19"
+          }
+        ],
+        "flags": [],
+        "cross_report_flags": [],
+        "supersedes_report_id": null
+      }
+    }
+  ]
+}

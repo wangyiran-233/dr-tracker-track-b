@@ -1,0 +1,2322 @@
+{
+  "meta": {
+    "description": "Synthetic CINV patient-report dataset for the Dr.Tracker Track B prototype. Fictional patients; simplified regimens; not clinical guidance.",
+    "seed": 42,
+    "study_days": 42
+  },
+  "medications": [
+    {
+      "generic_name": "ondansetron",
+      "brand_names": [
+        "Zofran",
+        "Zofran ODT"
+      ],
+      "drug_class": "5-HT3 antagonist",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "olanzapine",
+      "brand_names": [
+        "Zyprexa"
+      ],
+      "drug_class": "atypical antipsychotic",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "dexamethasone",
+      "brand_names": [
+        "Decadron"
+      ],
+      "drug_class": "corticosteroid",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "prochlorperazine",
+      "brand_names": [
+        "Compazine"
+      ],
+      "drug_class": "dopamine antagonist",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "aprepitant",
+      "brand_names": [
+        "Emend"
+      ],
+      "drug_class": "NK1 antagonist",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "metoclopramide",
+      "brand_names": [
+        "Reglan"
+      ],
+      "drug_class": "dopamine antagonist",
+      "is_antiemetic": 1
+    },
+    {
+      "generic_name": "cisplatin",
+      "brand_names": [],
+      "drug_class": "chemotherapy (platinum)",
+      "is_antiemetic": 0
+    },
+    {
+      "generic_name": "carboplatin",
+      "brand_names": [
+        "Paraplatin"
+      ],
+      "drug_class": "chemotherapy (platinum)",
+      "is_antiemetic": 0
+    },
+    {
+      "generic_name": "paclitaxel",
+      "brand_names": [
+        "Taxol"
+      ],
+      "drug_class": "chemotherapy (taxane)",
+      "is_antiemetic": 0
+    },
+    {
+      "generic_name": "docetaxel",
+      "brand_names": [
+        "Taxotere"
+      ],
+      "drug_class": "chemotherapy (taxane)",
+      "is_antiemetic": 0
+    },
+    {
+      "generic_name": "fluorouracil",
+      "brand_names": [
+        "5-FU"
+      ],
+      "drug_class": "chemotherapy (antimetabolite)",
+      "is_antiemetic": 0
+    }
+  ],
+  "patients": [
+    {
+      "patient_id": "P001",
+      "display_name": "Alex R. (synthetic)",
+      "diagnosis": "Oropharyngeal SCC",
+      "regimen_name": "Cisplatin 100 mg/m2 q21d + RT",
+      "emetogenic_risk": "high",
+      "enrolled_at": "2026-09-07",
+      "baseline_weight_kg": 74.0,
+      "weight_alert_pct": 5.0
+    },
+    {
+      "patient_id": "P002",
+      "display_name": "Jordan M. (synthetic)",
+      "diagnosis": "Laryngeal SCC",
+      "regimen_name": "Cisplatin 100 mg/m2 q21d + RT",
+      "emetogenic_risk": "high",
+      "enrolled_at": "2026-09-08",
+      "baseline_weight_kg": 81.5,
+      "weight_alert_pct": 5.0
+    },
+    {
+      "patient_id": "P003",
+      "display_name": "Sam K. (synthetic)",
+      "diagnosis": "Nasopharyngeal carcinoma",
+      "regimen_name": "Carboplatin + paclitaxel q14d (simplified)",
+      "emetogenic_risk": "moderate",
+      "enrolled_at": "2026-09-09",
+      "baseline_weight_kg": 63.2,
+      "weight_alert_pct": 5.0
+    },
+    {
+      "patient_id": "P004",
+      "display_name": "Taylor B. (synthetic)",
+      "diagnosis": "Oral cavity SCC",
+      "regimen_name": "Paclitaxel q14d + RT (simplified)",
+      "emetogenic_risk": "low",
+      "enrolled_at": "2026-09-10",
+      "baseline_weight_kg": 69.0,
+      "weight_alert_pct": 5.0
+    },
+    {
+      "patient_id": "P005",
+      "display_name": "Casey L. (synthetic)",
+      "diagnosis": "Hypopharyngeal SCC",
+      "regimen_name": "TPF (docetaxel + cisplatin + 5-FU) q21d",
+      "emetogenic_risk": "high",
+      "enrolled_at": "2026-09-11",
+      "baseline_weight_kg": 77.8,
+      "weight_alert_pct": 5.0
+    }
+  ],
+  "chemo_administrations": [
+    {
+      "patient_id": "P001",
+      "cycle_number": 1,
+      "administered_at": "2026-09-07T09:30:00",
+      "agents": "cisplatin"
+    },
+    {
+      "patient_id": "P001",
+      "cycle_number": 2,
+      "administered_at": "2026-09-28T09:30:00",
+      "agents": "cisplatin"
+    },
+    {
+      "patient_id": "P002",
+      "cycle_number": 1,
+      "administered_at": "2026-09-08T09:30:00",
+      "agents": "cisplatin"
+    },
+    {
+      "patient_id": "P002",
+      "cycle_number": 2,
+      "administered_at": "2026-09-29T09:30:00",
+      "agents": "cisplatin"
+    },
+    {
+      "patient_id": "P003",
+      "cycle_number": 1,
+      "administered_at": "2026-09-09T09:30:00",
+      "agents": "carboplatin, paclitaxel"
+    },
+    {
+      "patient_id": "P003",
+      "cycle_number": 2,
+      "administered_at": "2026-09-23T09:30:00",
+      "agents": "carboplatin, paclitaxel"
+    },
+    {
+      "patient_id": "P003",
+      "cycle_number": 3,
+      "administered_at": "2026-10-07T09:30:00",
+      "agents": "carboplatin, paclitaxel"
+    },
+    {
+      "patient_id": "P004",
+      "cycle_number": 1,
+      "administered_at": "2026-09-10T09:30:00",
+      "agents": "paclitaxel"
+    },
+    {
+      "patient_id": "P004",
+      "cycle_number": 2,
+      "administered_at": "2026-09-24T09:30:00",
+      "agents": "paclitaxel"
+    },
+    {
+      "patient_id": "P004",
+      "cycle_number": 3,
+      "administered_at": "2026-10-08T09:30:00",
+      "agents": "paclitaxel"
+    },
+    {
+      "patient_id": "P005",
+      "cycle_number": 1,
+      "administered_at": "2026-09-12T09:30:00",
+      "agents": "docetaxel, cisplatin, fluorouracil"
+    },
+    {
+      "patient_id": "P005",
+      "cycle_number": 2,
+      "administered_at": "2026-10-03T09:30:00",
+      "agents": "docetaxel, cisplatin, fluorouracil"
+    }
+  ],
+  "medication_orders": [
+    {
+      "patient_id": "P001",
+      "med": "dexamethasone",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "once daily on days 2-3 after each infusion",
+      "is_prn": 0,
+      "start_date": "2026-09-07",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P001",
+      "med": "ondansetron",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "every 8 hours as needed for nausea",
+      "is_prn": 1,
+      "start_date": "2026-09-07",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P002",
+      "med": "dexamethasone",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "once daily on days 2-3 after each infusion",
+      "is_prn": 0,
+      "start_date": "2026-09-08",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P002",
+      "med": "ondansetron",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "every 8 hours as needed for nausea",
+      "is_prn": 1,
+      "start_date": "2026-09-08",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P002",
+      "med": "olanzapine",
+      "dose": "5 mg",
+      "route": "PO",
+      "frequency": "nightly",
+      "is_prn": 0,
+      "start_date": "2026-09-16",
+      "end_date": null,
+      "change_reason": "Delayed nausea not controlled on PRN ondansetron + dexamethasone in cycle 1 (synthetic scenario)"
+    },
+    {
+      "patient_id": "P003",
+      "med": "dexamethasone",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "once daily on days 2-3 after each infusion",
+      "is_prn": 0,
+      "start_date": "2026-09-09",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P003",
+      "med": "ondansetron",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "every 8 hours as needed for nausea",
+      "is_prn": 1,
+      "start_date": "2026-09-09",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P004",
+      "med": "prochlorperazine",
+      "dose": "10 mg",
+      "route": "PO",
+      "frequency": "every 6 hours as needed for nausea",
+      "is_prn": 1,
+      "start_date": "2026-09-10",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P005",
+      "med": "dexamethasone",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "once daily on days 2-3 after each infusion",
+      "is_prn": 0,
+      "start_date": "2026-09-11",
+      "end_date": null,
+      "change_reason": null
+    },
+    {
+      "patient_id": "P005",
+      "med": "ondansetron",
+      "dose": "8 mg",
+      "route": "PO",
+      "frequency": "every 8 hours as needed for nausea",
+      "is_prn": 1,
+      "start_date": "2026-09-11",
+      "end_date": null,
+      "change_reason": null
+    }
+  ],
+  "weight_measurements": [
+    {
+      "patient_id": "P001",
+      "measured_date": "2026-09-07",
+      "weight_kg": 73.8,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P001",
+      "measured_date": "2026-09-28",
+      "weight_kg": 72.0,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P002",
+      "measured_date": "2026-09-08",
+      "weight_kg": 81.1,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P002",
+      "measured_date": "2026-09-29",
+      "weight_kg": 79.2,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P003",
+      "measured_date": "2026-09-09",
+      "weight_kg": 63.3,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P003",
+      "measured_date": "2026-09-23",
+      "weight_kg": 61.9,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P003",
+      "measured_date": "2026-10-07",
+      "weight_kg": 61.2,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P004",
+      "measured_date": "2026-09-10",
+      "weight_kg": 68.8,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P004",
+      "measured_date": "2026-09-24",
+      "weight_kg": 68.3,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P004",
+      "measured_date": "2026-10-08",
+      "weight_kg": 68.0,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P005",
+      "measured_date": "2026-09-12",
+      "weight_kg": 77.4,
+      "source": "clinic"
+    },
+    {
+      "patient_id": "P005",
+      "measured_date": "2026-10-03",
+      "weight_kg": 75.7,
+      "source": "clinic"
+    }
+  ],
+  "raw_reports": [
+    {
+      "report_id": "R0001",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-07T22:27:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0002",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-09T07:29:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous last night. Vomited twice yesterday evening. Not much appetite.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0003",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-09T11:00:00",
+      "source": "free_text",
+      "raw_text": "Took my ondansetron at 8 this morning but threw it up about 20 minutes later. Took another at 10 and that one stayed down.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0004",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-09T21:27:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 1,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0005",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-10T08:10:00",
+      "source": "free_text",
+      "raw_text": "Rough night. Threw up a few times after midnight, lost count honestly. Still a bit queasy this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0006",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-10T18:27:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous today. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0007",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-10T20:15:00",
+      "source": "free_text",
+      "raw_text": "Threw up once today after dinner, nausea moderate.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0008",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-10T22:29:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous after lunch. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0009",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-11T08:30:00",
+      "source": "free_text",
+      "raw_text": "Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0010",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-11T18:31:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0011",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-11T19:55:00",
+      "source": "free_text",
+      "raw_text": "Still felt unbearably nauseous all day even after taking Zofran. Threw up 4 times this morning. Not much appetite. Took Zofran 3 times today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0012",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-11T19:55:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 4,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 3,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0013",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-11T20:20:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 3,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 4,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0014",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-11T20:38:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0015",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-12T18:10:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day. Threw up twice tonight.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0016",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-12T19:51:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0017",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-12T20:37:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day. No vomiting. Took my Zofran twice today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0018",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-12T20:55:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 3,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 3,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0019",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-12T21:11:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous tonight. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0020",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-13T18:40:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0021",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-13T20:15:00",
+      "source": "free_text",
+      "raw_text": "Still felt moderately nauseous tonight even after taking my Zofran. Threw up twice after lunch. Took my Zofran twice today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0022",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-13T21:52:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 72.3,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0023",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-13T21:55:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous this morning. No vomiting. Took ondansetron once today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0024",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-13T21:58:00",
+      "source": "free_text",
+      "raw_text": "Still felt moderately nauseous this morning even after taking my Zofran. Took my Zofran once today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0025",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-14T18:33:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0026",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-14T19:20:00",
+      "source": "free_text",
+      "raw_text": "Still really nauseous even after taking Zofran at lunch. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0027",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-14T20:08:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0028",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-14T21:19:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 79.4,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0029",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-14T22:23:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0030",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-15T19:31:00",
+      "source": "free_text",
+      "raw_text": "Still felt moderately nauseous all day even after taking Zofran. Vomited twice after lunch. Not much appetite. Took Zofran 3 times today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0031",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-15T21:07:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy after lunch. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0032",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-15T21:12:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 62.3,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0033",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-15T21:21:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0034",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-16T10:07:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0035",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-16T20:30:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 5,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 6,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 1,
+        "weight_kg": null,
+        "comments": "Threw up once after lunch, forgot to count it above, sorry."
+      }
+    },
+    {
+      "report_id": "R0036",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-16T20:40:00",
+      "source": "free_text",
+      "raw_text": "Felt kind of off today, not sure if it's nausea or just tired. Ate okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0037",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-16T21:08:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0038",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-16T21:11:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 68.7,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0039",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-16T21:38:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0040",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-17T18:14:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0041",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-17T19:06:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0042",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-17T21:29:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 3,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 76.5,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0043",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-17T21:37:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0044",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-18T19:11:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0045",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-18T22:26:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0046",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-19T07:18:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous all day yesterday. No vomiting yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0047",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-19T07:20:00",
+      "source": "free_text",
+      "raw_text": "Update for yesterday: Felt a little nauseous yesterday morning. No vomiting yesterday. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0048",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-19T19:18:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0049",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-19T19:29:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous tonight.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0050",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-19T21:29:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0051",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-20T09:00:00",
+      "source": "free_text",
+      "raw_text": "Forgot my olanzapine last night. Nausea is worse this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0052",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-20T20:46:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0053",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-20T21:09:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 72.4,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0054",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-20T22:20:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0055",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-21T08:05:00",
+      "source": "free_text",
+      "raw_text": "Weighed myself this morning: 72.1 kg. Appetite still poor.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0056",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-21T20:02:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 79.5,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0057",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-22T07:19:00",
+      "source": "free_text",
+      "raw_text": "Update for yesterday: Felt slightly queasy during the night. No vomiting yesterday. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0058",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-22T09:52:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous all day yesterday. No vomiting yesterday. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0059",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-22T10:47:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0060",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-22T18:43:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0061",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-22T20:28:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 62.4,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0062",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-23T08:12:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous during the night. No vomiting yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0063",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-23T20:11:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 68.3,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0064",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-23T20:53:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 4,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 4,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 2,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0065",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-24T09:51:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0066",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-24T18:03:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0067",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-24T19:45:00",
+      "source": "free_text",
+      "raw_text": "Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0068",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-24T20:33:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 76.0,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0069",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-24T20:42:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous this morning. No vomiting. Took prochlorperazine this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0070",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-24T22:17:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0071",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-25T19:03:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous today. Threw up 3 times this morning. Not much appetite. Took Zofran twice today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0072",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-25T20:10:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0073",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-25T20:39:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0074",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-25T21:55:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0075",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-26T08:37:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0076",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-26T19:01:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous this morning. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0077",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-26T20:10:00",
+      "source": "free_text",
+      "raw_text": "Day before yesterday was the worst, vomited 4 times. Today just mild nausea.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0078",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-26T21:30:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0079",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-26T22:34:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0080",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-27T19:08:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0081",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-27T20:21:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 72.1,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0082",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-27T20:50:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy tonight. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0083",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-27T21:43:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 3,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 1,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0084",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-28T21:02:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy this afternoon. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0085",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-28T21:16:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 79.4,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0086",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-29T10:23:00",
+      "source": "free_text",
+      "raw_text": "Update for yesterday: Felt slightly queasy yesterday evening. No vomiting yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0087",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-29T19:05:00",
+      "source": "free_text",
+      "raw_text": "No throwing up today. Nausea pretty much gone, maybe a tiny bit after breakfast.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0088",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-29T19:32:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 61.0,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0089",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-29T20:50:00",
+      "source": "free_text",
+      "raw_text": "Threw up like a hundred times today, it just would not stop.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0090",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-29T21:09:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy today. No vomiting. Took my Zofran once today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0091",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-29T22:07:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous this morning. No vomiting. Took Zofran this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0092",
+      "patient_id": "P005",
+      "submitted_at": "2026-09-30T18:28:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0093",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-30T19:30:00",
+      "source": "free_text",
+      "raw_text": "Vomited 3 times this afternoon, could barely get off the couch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0094",
+      "patient_id": "P004",
+      "submitted_at": "2026-09-30T20:28:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 67.7,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0095",
+      "patient_id": "P001",
+      "submitted_at": "2026-09-30T21:00:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 7,
+        "vomit_episodes_24h": 1,
+        "appetite_loss_0_10": 8,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 2,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0096",
+      "patient_id": "P002",
+      "submitted_at": "2026-09-30T21:45:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day. Threw up once tonight. Not much appetite. Took my Zofran after dinner.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0097",
+      "patient_id": "P003",
+      "submitted_at": "2026-09-30T22:10:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0098",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-01T20:15:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0099",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-01T20:26:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 76.3,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0100",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-01T21:06:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous after lunch. Threw up once after lunch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0101",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-02T10:06:00",
+      "source": "free_text",
+      "raw_text": "Update for yesterday: Still felt moderately nauseous yesterday afternoon even after taking my Zofran. No vomiting yesterday. Took my Zofran once yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0102",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-02T20:16:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous after dinner. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0103",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-02T20:21:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous this afternoon.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0104",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-02T20:42:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0105",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-02T21:21:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous after lunch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0106",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-03T07:16:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0107",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-03T19:44:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous tonight. Threw up once today. Took ondansetron after lunch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0108",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-03T20:41:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy after dinner.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0109",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-03T21:04:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0110",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-04T10:20:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0111",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-04T18:22:00",
+      "source": "free_text",
+      "raw_text": "Still felt very nauseous this morning even after taking my Zofran. Vomited twice after dinner. Not much appetite. Took my Zofran 3 times today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0112",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-04T19:05:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0113",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-04T19:54:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0114",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-04T21:41:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0115",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-04T21:45:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 71.0,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0116",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-05T19:57:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0117",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-05T20:00:00",
+      "source": "free_text",
+      "raw_text": "Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0118",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-05T20:06:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 78.2,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0119",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-05T20:14:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0120",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-06T21:44:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 61.1,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0121",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-06T22:14:00",
+      "source": "free_text",
+      "raw_text": "Still felt very nauseous today even after taking Zofran. Threw up twice this afternoon. Not much appetite. Took Zofran once today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0122",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-07T07:28:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0123",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-07T10:55:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day yesterday. No vomiting yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0124",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-07T18:35:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0125",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-07T21:12:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy this morning. No vomiting. Took my Zofran this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0126",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-07T21:14:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy after dinner. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0127",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-07T21:54:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 67.7,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0128",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-08T08:10:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous yesterday morning. No vomiting yesterday. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0129",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-08T19:26:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 74.3,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0130",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-08T22:09:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0131",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-08T22:14:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0132",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-09T08:10:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0133",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-09T14:02:00",
+      "source": "free_text",
+      "raw_text": "Mild nausea after lunch, no vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0134",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-09T14:03:00",
+      "source": "free_text",
+      "raw_text": "Mild nausea after lunch, no vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0135",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-09T21:57:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0136",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-09T22:01:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0137",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-09T22:18:00",
+      "source": "free_text",
+      "raw_text": "Felt moderately nauseous all day. Vomited twice after dinner.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0138",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-10T20:22:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy after lunch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0139",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-10T21:01:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous this afternoon. No vomiting. Took prochlorperazine this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0140",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-10T21:32:00",
+      "source": "free_text",
+      "raw_text": "Still felt moderately nauseous all day even after taking Zofran. Vomited once today. Took Zofran once today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0141",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-10T22:14:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy tonight. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0142",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-11T09:40:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0143",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-11T19:36:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0144",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-11T20:44:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 70.9,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0145",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-11T21:11:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous all day.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0146",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-11T21:33:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous today. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0147",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-12T19:27:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous after dinner. No vomiting. Took Compazine after dinner.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0148",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-12T21:25:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 2,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 78.2,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0149",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-13T07:15:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0150",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-13T18:58:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy after dinner. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0151",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-13T19:55:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 59.9,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0152",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-13T21:40:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0153",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-14T19:33:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 67.2,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0154",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-14T19:40:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous after lunch.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0155",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-14T20:49:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0156",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-14T21:38:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0157",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-14T22:54:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0158",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-15T19:48:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0159",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-15T19:59:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 74.0,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0160",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-15T21:31:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy this afternoon. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0161",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-15T21:41:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0162",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-15T22:57:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0163",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-16T19:51:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous today.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0164",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-16T20:02:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 1,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0165",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-16T21:03:00",
+      "source": "free_text",
+      "raw_text": "Felt mildly nauseous this morning.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0166",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-16T21:07:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0167",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-17T08:10:00",
+      "source": "free_text",
+      "raw_text": "Update for yesterday: Felt slightly queasy yesterday afternoon. No vomiting yesterday.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0168",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-17T19:25:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0169",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-17T19:46:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0170",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-17T20:50:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous after dinner. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0171",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-18T10:11:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0172",
+      "patient_id": "P001",
+      "submitted_at": "2026-10-18T19:08:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 71.2,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0173",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-18T19:18:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0174",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-18T20:18:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0175",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-19T09:36:00",
+      "source": "free_text",
+      "raw_text": "Yesterday was a good day, no nausea or vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0176",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-19T18:11:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day. No vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0177",
+      "patient_id": "P002",
+      "submitted_at": "2026-10-19T20:07:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 2,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 78.4,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0178",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-19T20:13:00",
+      "source": "free_text",
+      "raw_text": "Felt slightly queasy all day. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0179",
+      "patient_id": "P003",
+      "submitted_at": "2026-10-20T19:35:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 60.0,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0180",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-20T19:41:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": null,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0181",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-20T20:19:00",
+      "source": "free_text",
+      "raw_text": "Felt a little nauseous tonight. No vomiting. Appetite is okay.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0182",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-21T18:42:00",
+      "source": "free_text",
+      "raw_text": "Feeling pretty good today, no nausea or vomiting.",
+      "questionnaire": null
+    },
+    {
+      "report_id": "R0183",
+      "patient_id": "P004",
+      "submitted_at": "2026-10-21T21:16:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 0,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 67.2,
+        "comments": null
+      }
+    },
+    {
+      "report_id": "R0184",
+      "patient_id": "P005",
+      "submitted_at": "2026-10-22T19:29:00",
+      "source": "questionnaire",
+      "raw_text": null,
+      "questionnaire": {
+        "nausea_0_10": 1,
+        "vomit_episodes_24h": 0,
+        "appetite_loss_0_10": 0,
+        "kept_fluids_down": "yes",
+        "prn_antiemetic_doses_24h": 0,
+        "weight_kg": 74.1,
+        "comments": null
+      }
+    }
+  ]
+}

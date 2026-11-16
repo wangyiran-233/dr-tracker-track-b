@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+
+# assessment brief is confidential (IP notice) - keep out of the repo
+Data_Intelligence_Engineering_Intern_Assessment_Brief.pdf
