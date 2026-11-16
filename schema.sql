@@ -316,7 +316,8 @@ SELECT d.patient_id,
        EXISTS (SELECT 1 FROM review_flags f
                  JOIN flag_events fe ON fe.flag_id = f.flag_id AND fe.event_table = 'symptom'
                  JOIN active e ON e.event_id = fe.event_id
-                WHERE f.status = 'open' AND f.flag_type <> 'red_flag'
+                WHERE f.status = 'open'
+                  AND f.flag_type IN ('intra_report_conflict', 'cross_report_conflict')
                   AND e.patient_id = d.patient_id AND e.occurred_date = d.occurred_date
                   AND e.symptom_code = d.symptom_code) AS has_open_conflict,
        EXISTS (SELECT 1 FROM review_flags f
