@@ -303,13 +303,16 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
 
 **Open items**
 
-- **12 reports still need the LLM (prompt v2).** The full LLM run stopped at report 163/184 on Groq's free-tier
-  daily token limit (200k tokens/day for this model). 118 of 130 LLM reports are done and cached; the database
-  was left unchanged, so **the dashboard currently shows the keyword-rule data** (and says so). Re-running
-  `parse_reports.py --text-parser llm` only calls the API for the remaining 12.
-- **Prompt v3 for R0043.** Rather than relaxing the evidence check, ask the model to quote the full contiguous
-  phrase ("no nausea or vomiting") and allow one span to support several rows. The verification rule stays
-  unchanged. *Considered alternative:* allow evidence assembled from fragments — rescues merged negations, but
+- **Full LLM parse (prompt v2) is complete** and the dashboard shows it. It took two days: the first run stopped at
+  report 163/184 on Groq's free-tier daily token limit (200k tokens/day for this model) with the database left
+  unchanged; the second run made the remaining 12 calls (130 LLM reports in total, no rule fallbacks). The
+  keyword-rule database is kept locally as `data/cinv_rule.db`.
+- **Prompt v3 for R0043 — now the top priority.** On the full dataset the same issue dropped **20 correct rows**:
+  every routine report "Feeling pretty good today, no nausea or vomiting." gets evidence `"no vomiting"`, which is
+  not contiguous, so the "vomiting: absent" row is rejected (flagged `low_confidence`). Those days appear on the
+  dashboard as *no report* instead of *reported none* (123 vs 143 absent-vomiting rows in the rule version).
+  Fix: rather than relaxing the evidence check, ask the model to quote the full contiguous phrase
+  ("no nausea or vomiting") and allow one span to support several rows. The verification rule stays unchanged. *Considered alternative:* allow evidence assembled from fragments — rescues merged negations, but
   weakens the anti-fabrication guarantee (fragments from different sentences can assemble a meaning the patient
   never stated). If ever adopted: same sentence only, original order, ≤ 2 fragments, lower confidence, distinct
   highlight.
@@ -327,6 +330,11 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
 **Known limitations**
 
 - Same-part-of-day episodes from separate reports are merged by the max rule (possible under-count).
+- A follow-on sentence without its own date word in a next-morning report ("Yesterday was a good day … Appetite is
+  okay.") is dated to the submission day by the LLM; on the full run this created one false
+  `cross_report_conflict` (R0034 vs R0037). Same ambiguity as gold case R0175.
+- When a patient's medication wording is unmapped, the intake row and the symptom row that mention it each raise
+  an `unmapped_medication` flag (R0067 shows the same flag twice); flags should be de-duplicated per report.
 - "Overnight" is assigned to the date the night started (convention); questionnaire answers cover the
   submission day.
 - Correction context is only the patient's previous report within 72 h.
@@ -340,6 +348,8 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
   written before effort was added were all produced at `medium`, which therefore adds no suffix, so existing
   cache entries remain valid.
 
-**中文要点：** 还有 12 条报告等明天额度恢复后用 LLM 补跑；目前看板显示的是关键词规则版本的数据（横幅有标明）。
+**中文要点：** LLM v2 全量解析已完成（分两天跑完，第一次因每日 token 上限停在 163/184），看板现在显示 LLM v2 的数据；
+规则版本的数据库保留在本地 `data/cinv_rule.db`。全量数据上，R0043 同类问题丢掉了 20 行"没有呕吐"，这些天在看板上显示为"没报告"而不是"报告了 0 次"，
+所以 v3 是最优先的工作。
 R0043 的 v3 方案是改 prompt 让模型引用完整连续的短语，不放宽 evidence 检查；和 v3 一起做的还有"病人给出具体或大概时间时存进
 occurred_start"（来自人工复核 R0003、R0067 的意见）。另外还需要一组留出集。
