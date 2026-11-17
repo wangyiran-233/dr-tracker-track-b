@@ -71,8 +71,8 @@ def sev_label(v) -> str:
 def _trigger_quote(description: str, words: str | None) -> str:
     """The patient's own words behind a red flag: the quoted evidence span if the
     flag has one, else the report text / comment, else the flag description."""
-    m = re.search(r"[\"']([^\"']{3,})[\"']\s*$", description)
-    return m.group(1) if m else (words or description)
+    m = re.search(r"(?:: |^)(\"(.+)\"|'(.+)')\s*$", description)
+    return (m.group(2) or m.group(3)) if m else (words or description)
 
 
 def needs_attention(snap: pd.DataFrame) -> None:
