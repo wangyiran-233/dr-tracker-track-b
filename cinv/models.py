@@ -43,6 +43,9 @@ class SymptomEvent(BaseModel):
     episode_count_max: int | None = Field(None, ge=0)
     occurred_date: date
     part_of_day: PartOfDay = "unknown"
+    # clock time only when the patient stated one (or it follows from one, e.g.
+    # "at 8 ... 20 minutes later" -> ~08:20); precision 'exact' or 'approximate'
+    occurred_start: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
     time_precision: TimePrecision = "day"
     timing_raw: str | None = None
     related_med: str | None = None          # generic name from the medication dictionary
@@ -71,6 +74,7 @@ class IntakeEvent(BaseModel):
     intake_status: IntakeStatus
     dose_count: int = Field(1, ge=0)
     taken_date: date
+    taken_at: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$")
     part_of_day: PartOfDay = "unknown"
     time_precision: TimePrecision = "day"
     evidence_span: str | None = None

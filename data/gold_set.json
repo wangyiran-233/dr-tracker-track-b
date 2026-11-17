@@ -9,6 +9,8 @@
       "counts": "'once' 1/1, 'twice' 2/2, 'a few times' 2/4, present but no number => 1/NULL (at least one), implausible numbers => 1/NULL + implausible_value flag.",
       "time": "occurred_date is resolved from relative words using submitted_at. 'overnight' belongs to the date the night started. Questionnaire answers cover the submission day and use part_of_day='all_day'. No time words => 'unknown'.",
       "questionnaire_prn": "The questionnaire asks for a PRN dose count, not a drug. The drug is inferred only when exactly one PRN antiemetic order is active that day (med_source='inferred_prn_order'); with zero or several active PRN orders med is NULL and the report gets an unmapped_medication flag. Medications named in free text have med_source='patient_words'.",
+      "clock_time": "Stored only when the patient states a clock time or one follows arithmetically from a stated time ('at 8 ... 20 minutes later' -> ~08:20, approximate). Never from submission time or from words like 'morning'. Keys absent = no time given.",
+      "day_inheritance": "A sentence with no day word takes the day of the previous sentence in the same report; only the day is inherited, never the part of day.",
       "fluids": "kept_fluids_down: yes => unable_to_keep_fluids absent; partly => present, severity NULL; no => present + red_flag.",
       "flags": "'flags' are detectable from the report alone; 'cross_report_flags' need other reports (conflict / duplicate checker)."
     },
@@ -36,7 +38,7 @@
       "case_tags": [
         "vomited_up_dose"
       ],
-      "notes": "Two intake rows: one vomited up, one taken.",
+      "notes": "Two intake rows: one vomited up, one taken. Added after human review: stated times 'at 8' and 'at 10' are stored as clock times; the vomit is 'about 20 minutes later' -> ~08:20 (approximate, computed from a stated time).",
       "expected": {
         "symptom_events": [
           {
@@ -49,7 +51,9 @@
             "occurred_date": "2026-09-09",
             "part_of_day": "morning",
             "related_med": "ondansetron",
-            "med_relation": "vomited_up_dose"
+            "med_relation": "vomited_up_dose",
+            "clock_time": "08:20",
+            "clock_time_approximate": true
           }
         ],
         "intake_events": [
@@ -59,7 +63,9 @@
             "dose_count": 1,
             "taken_date": "2026-09-09",
             "part_of_day": "morning",
-            "med_source": "patient_words"
+            "med_source": "patient_words",
+            "clock_time": "08:00",
+            "clock_time_approximate": false
           },
           {
             "med": "ondansetron",
@@ -67,7 +73,9 @@
             "dose_count": 1,
             "taken_date": "2026-09-09",
             "part_of_day": "morning",
-            "med_source": "patient_words"
+            "med_source": "patient_words",
+            "clock_time": "10:00",
+            "clock_time_approximate": false
           }
         ],
         "weights": [],
@@ -715,7 +723,7 @@
       "case_tags": [
         "unmapped_medication"
       ],
-      "notes": "Likely ondansetron ODT, but the parser must not guess: med NULL + flag for review. Nausea present, no intensity given.",
+      "notes": "Likely ondansetron ODT, but the parser must not guess: med NULL + flag for review. Nausea present, no intensity given. Added after human review: 'around 2pm' -> intake ~14:00 (approximate); the nausea has no stated start time, so none is stored.",
       "expected": {
         "symptom_events": [
           {
@@ -738,7 +746,9 @@
             "dose_count": 1,
             "taken_date": "2026-09-24",
             "part_of_day": "afternoon",
-            "med_source": "patient_words"
+            "med_source": "patient_words",
+            "clock_time": "14:00",
+            "clock_time_approximate": true
           }
         ],
         "weights": [],

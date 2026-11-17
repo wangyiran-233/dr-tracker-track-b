@@ -55,8 +55,22 @@ def parse_report(row: dict, ctx: Context, text_parser: TextParser, fallback: boo
     else:
         rep = tp(row["report_id"], row["patient_id"], row["raw_text"], row["submitted_at"], ctx)
     postprocess(rep)
-    rep.flags += report_flags(rep)
+    rep.flags = dedupe_flags(rep.flags + report_flags(rep))
     return rep
+
+
+def dedupe_flags(flags: list[FlagCandidate]) -> list[FlagCandidate]:
+    """One flag per (report, type, description): e.g. an unmapped medication
+    mentioned by both an intake row and a symptom row is one review item that
+    points at both rows."""
+    merged: dict[tuple, FlagCandidate] = {}
+    for f in flags:
+        key = (f.report_id, f.flag_type, f.description)
+        if key in merged:
+            merged[key].refs = list(dict.fromkeys(merged[key].refs + f.refs))
+        else:
+            merged[key] = f
+    return list(merged.values())
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +243,7 @@ def cross_report_pass(rows: list[dict], parsed: dict[str, ParsedReport]) -> list
                                 flag_type="cross_report_conflict", severity="warning", report_id=rid,
                                 description=f"{e.symptom_code} on {e.occurred_date}: {pid} vs {rid}: {why}.",
                                 refs=[(pid, "symptom", j), (rid, "symptom", i)]))
-    return flags
+    return dedupe_flags(flags)
 
 
 def run(rows: list[dict], ctx: Context, text_parser: TextParser,
@@ -298,12 +312,12 @@ def write_results(con: sqlite3.Connection, parsed: dict[str, ParsedReport], cros
                 cur = con.execute(
                     """INSERT INTO symptom_events (report_id, patient_id, symptom_code, presence, severity_level,
                          severity_nrs, severity_raw, episode_count_min, episode_count_max, occurred_date,
-                         part_of_day, time_precision, timing_raw, related_med_id, med_relation, evidence_span,
-                         extraction_method, extraction_run_id, confidence, status)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         occurred_start, part_of_day, time_precision, timing_raw, related_med_id, med_relation,
+                         evidence_span, extraction_method, extraction_run_id, confidence, status)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (rid, rep.patient_id, e.symptom_code, e.presence, e.severity_level, e.severity_nrs,
                      e.severity_raw, e.episode_count_min, e.episode_count_max, e.occurred_date.isoformat(),
-                     e.part_of_day, e.time_precision, e.timing_raw, med_id.get(e.related_med), e.med_relation,
+                     e.occurred_start, e.part_of_day, e.time_precision, e.timing_raw, med_id.get(e.related_med), e.med_relation,
                      e.evidence_span, e.extraction_method, run_ids.get(e.extraction_method), e.confidence,
                      e.status))
                 ids[(rid, "symptom", i)] = cur.lastrowid
@@ -312,11 +326,11 @@ def write_results(con: sqlite3.Connection, parsed: dict[str, ParsedReport], cros
             for i, e in enumerate(rep.intake_events):
                 cur = con.execute(
                     """INSERT INTO medication_intake_events (report_id, patient_id, med_id, med_text_raw,
-                         intake_status, dose_count, taken_date, part_of_day, time_precision, evidence_span,
-                         extraction_method, extraction_run_id, confidence)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                         intake_status, dose_count, taken_date, taken_at, part_of_day, time_precision,
+                         evidence_span, extraction_method, extraction_run_id, confidence)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (rid, rep.patient_id, med_id.get(e.med), e.med_text_raw, e.intake_status, e.dose_count,
-                     e.taken_date.isoformat(), e.part_of_day, e.time_precision, e.evidence_span,
+                     e.taken_date.isoformat(), e.taken_at, e.part_of_day, e.time_precision, e.evidence_span,
                      e.extraction_method, run_ids.get(e.extraction_method), e.confidence))
                 ids[(rid, "intake", i)] = cur.lastrowid
             for i, w in enumerate(rep.weights):

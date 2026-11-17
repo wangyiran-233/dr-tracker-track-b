@@ -188,7 +188,9 @@ Gold set: **30 reports** (23 free text, 7 questionnaires) — all 18 hand-writte
 sample of 12 routine ones; the 18 tricky labels were human-reviewed (see [Where AI was used](#where-ai-was-used)).
 Run `evaluate.py`; full tables and every error are in `eval/results_v2.md` (`eval/results_v1.md` is the v1
 snapshot). Medication intake rows are scored on drug, status, date **and** whether the drug was stated by the
-patient or inferred from orders.
+patient or inferred from orders. Since prompt v3 the gold set also scores 4 patient-stated clock times; because
+of that, re-scoring v1/v2 against the current gold set gives one fewer fully-correct tricky report (R0003) than
+the snapshot tables below, which were computed before the clock labels existed.
 
 **Free-text reports (n = 23)**
 
@@ -307,34 +309,40 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
   report 163/184 on Groq's free-tier daily token limit (200k tokens/day for this model) with the database left
   unchanged; the second run made the remaining 12 calls (130 LLM reports in total, no rule fallbacks). The
   keyword-rule database is kept locally as `data/cinv_rule.db`.
-- **Prompt v3 for R0043 — now the top priority.** On the full dataset the same issue dropped **20 correct rows**:
-  every routine report "Feeling pretty good today, no nausea or vomiting." gets evidence `"no vomiting"`, which is
-  not contiguous, so the "vomiting: absent" row is rejected (flagged `low_confidence`). Those days appear on the
-  dashboard as *no report* instead of *reported none* (123 vs 143 absent-vomiting rows in the rule version).
-  Fix: rather than relaxing the evidence check, ask the model to quote the full contiguous phrase
-  ("no nausea or vomiting") and allow one span to support several rows. The verification rule stays unchanged. *Considered alternative:* allow evidence assembled from fragments — rescues merged negations, but
-  weakens the anti-fabrication guarantee (fragments from different sentences can assemble a meaning the patient
-  never stated). If ever adopted: same sentence only, original order, ≤ 2 fragments, lower confidence, distinct
-  highlight.
+- **Prompt v3 — implemented, gold-set evaluation not finished.** The run stopped on Groq's daily token limit after
+  **7 of 24** v3 calls (cached); 17 remain, then the rule / v1 / v2 / v3 comparison is written to
+  `eval/results_v3.md`. Only after that: re-run the full dataset with v3 (the dashboard still shows v2 data).
+  v3 makes three changes (`cinv/llm.py`, `_V3_EDITS`):
+  1. **Contiguous evidence (R0043).** On the full v2 run, 20 correct rows were dropped: every routine report
+     "Feeling pretty good today, no nausea or vomiting." got evidence `"no vomiting"`, which is not contiguous, so
+     "vomiting: absent" was rejected and those days show as *no report* instead of *reported none* (123 vs 143
+     absent-vomiting rows in the rule version). v3 asks for the whole contiguous phrase and lets one span support
+     several rows; **the verbatim check itself is unchanged**. *Considered alternative:* evidence assembled from
+     fragments — rescues merged negations but weakens the anti-fabrication guarantee (fragments from different
+     sentences can assemble a meaning the patient never stated). If ever adopted: same sentence only, original
+     order, ≤ 2 fragments, lower confidence, distinct highlight.
+  2. **Clock times (human review of R0003 / R0067).** `clock_time` + `clock_time_approximate` are returned only when
+     the patient states a time or one follows arithmetically from it (8:00 + "20 minutes later" → ~08:20); never
+     from submission time. Stored in `symptom_events.occurred_start` and the new `medication_intake_events.taken_at`
+     with `time_precision` `exact` / `approximate`; an unknown part of day is filled from the patient's clock time.
+     The gold set now has 4 clock-time labels (R0003 ×3, R0067 ×1); v1 and v2 score 0/4 by construction.
+  3. **Day rule for sentences without a day word (R0034/R0037, R0175).** Inherit the previous sentence's day,
+     never its part of day.
 - **Ask for the drug, not just a count (product fix).** Generate the questionnaire's PRN item from the patient's
   active orders — e.g. "How many doses of ondansetron (Zofran) did you take in the last 24 h?", one item per PRN
   order — so the drug is reported by the patient instead of inferred. The prototype currently infers and marks it.
-- **Store clock times the patient gives (with v3, from human review of R0003 / R0067).** "Took it at 8 … threw it
-  up 20 minutes later", "around 2pm": today only `part_of_day` is kept. The schema already has `occurred_start` /
-  `occurred_end` and `time_precision` (`exact` / `approximate`); the prompt and parser need to return a clock time
-  when one is stated, with the gold set extended to score it. Rule: only times the patient states or that follow
-  arithmetically from them (8:00 + 20 min → ~08:20, `approximate`); never a time inferred from submission time.
 - **Held-out evaluation set** in varied wording, written without looking at the rules.
 - Move the ad-hoc mock-client and schema checks (including the multi-PRN-order branch) into a `tests/` suite.
 
 **Known limitations**
 
 - Same-part-of-day episodes from separate reports are merged by the max rule (possible under-count).
-- A follow-on sentence without its own date word in a next-morning report ("Yesterday was a good day … Appetite is
-  okay.") is dated to the submission day by the LLM; on the full run this created one false
-  `cross_report_conflict` (R0034 vs R0037). Same ambiguity as gold case R0175.
-- When a patient's medication wording is unmapped, the intake row and the symptom row that mention it each raise
-  an `unmapped_medication` flag (R0067 shows the same flag twice); flags should be de-duplicated per report.
+- Under prompt v2, a follow-on sentence without its own date word in a next-morning report ("Yesterday was a good
+  day … Appetite is okay.") is dated to the submission day; on the full run this created one false
+  `cross_report_conflict` (R0034 vs R0037), same ambiguity as gold case R0175. v3 adds an explicit rule; not yet
+  verified (evaluation pending).
+- Flags are de-duplicated per report (same type and description → one flag linked to all its rows); previously an
+  unmapped medication mentioned in both an intake row and a symptom row raised two identical flags (R0067).
 - "Overnight" is assigned to the date the night started (convention); questionnaire answers cover the
   submission day.
 - Correction context is only the patient's previous report within 72 h.
@@ -350,6 +358,7 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
 
 **中文要点：** LLM v2 全量解析已完成（分两天跑完，第一次因每日 token 上限停在 163/184），看板现在显示 LLM v2 的数据；
 规则版本的数据库保留在本地 `data/cinv_rule.db`。全量数据上，R0043 同类问题丢掉了 20 行"没有呕吐"，这些天在看板上显示为"没报告"而不是"报告了 0 次"，
-所以 v3 是最优先的工作。
-R0043 的 v3 方案是改 prompt 让模型引用完整连续的短语，不放宽 evidence 检查；和 v3 一起做的还有"病人给出具体或大概时间时存进
-occurred_start"（来自人工复核 R0003、R0067 的意见）。另外还需要一组留出集。
+所以做了 prompt v3：① 要求引用完整连续的短语，同一段 evidence 可以支撑多行，验证规则不变；② 病人给出具体或大概时间时存下来
+（服药表新增 `taken_at`），绝不根据提交时间推断；③ 句子没有日期词时沿用上一句的日期，但不沿用时段。
+v3 在 gold set 上的评测因每日 token 上限只跑了 7/24 次调用（已缓存），剩下 17 次等额度恢复后补跑，然后再用 v3 跑全量。
+flag 现在按报告去重。另外还需要一组留出集。

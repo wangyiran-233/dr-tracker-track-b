@@ -24,18 +24,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from .common import Context, evidence_in_text, submitted_date
 from .models import (IntakeEvent, IntakeStatus, MedRelation, ParsedReport, PartOfDay, Presence,
                      SymptomCode, SymptomEvent, WeightReading)
 
-LATEST_PROMPT_VERSION = "v2"
+LATEST_PROMPT_VERSION = "v3"
 # Largest open-weight model on the account's Groq model list (checked 2026-11-16).
 # llama-3.3-70b-versatile is no longer served (404 model_not_found).
 DEFAULT_MODEL = "openai/gpt-oss-120b"
@@ -125,10 +126,57 @@ for _old, _new in _V2_EDITS:
     assert _old in SYSTEM_PROMPT_V2, _old
     SYSTEM_PROMPT_V2 = SYSTEM_PROMPT_V2.replace(_old, _new)
 
-PROMPTS = {"v1": SYSTEM_PROMPT_V1, "v2": SYSTEM_PROMPT_V2}
+# v3 changes vs v2 (motivated by the full v2 run and the human review of the gold set):
+#  1. Evidence: quote the whole contiguous phrase when supporting words are not adjacent
+#     ("no nausea or vomiting"); one span may support several rows. The verbatim check is
+#     unchanged (R0043: 20 correct "vomiting absent" rows were dropped on the full run).
+#  2. Clock times the patient states, or that follow arithmetically from a stated time, are
+#     returned as clock_time (+ approximate flag); never derived from submission time (R0003, R0067).
+#  3. Explicit day rule for sentences without a day word: inherit the previous sentence's day,
+#     never its part of day (R0034/R0037, R0175).
+_V3_EDITS = [
+    ('"day_offset":int, "part_of_day":...,',
+     '"day_offset":int, "part_of_day":..., "clock_time":"HH:MM"|null, "clock_time_approximate":bool,'),
+    ('  "part_of_day":..., "evidence_span":str, "confidence":float}],',
+     '  "part_of_day":..., "clock_time":"HH:MM"|null, "clock_time_approximate":bool, "evidence_span":str,\n'
+     '  "confidence":float}],'),
+    ("""  the previous day -> -1, part_of_day "overnight".""",
+     """  the previous day -> -1, part_of_day "overnight".
+  A sentence with no day word of its own ("today", "this morning", "tonight" count as day words for
+  day 0) takes the day of the previous sentence in the same report: "Yesterday was a good day, no
+  nausea. Appetite is okay." -> appetite day_offset -1. If no earlier sentence has a day word, use 0.
+  Inherit ONLY the day, never part_of_day."""),
+    ("""- med_mention: copy the patient's exact words""",
+     """- clock_time: only when the patient states a clock time ("at 8", "around 2pm") or one follows by simple
+  arithmetic from a stated time ("took it at 8 ... threw it up 20 minutes later" -> "08:20"). Use 24 h
+  "HH:MM". clock_time_approximate: true for "around/about/~" and for computed times, false for a plainly
+  stated time. Never derive a clock time from the submission time or from words like "morning". Else null.
+- med_mention: copy the patient's exact words"""),
+    ("""  Do not paraphrase. Rows whose evidence is not found verbatim are discarded.""",
+     """  Do not paraphrase. Rows whose evidence is not found verbatim are discarded.
+  If the words supporting a row are not adjacent (e.g. vomiting absent in "no nausea or vomiting"), quote
+  the whole contiguous phrase that contains them ("no nausea or vomiting"); never join fragments.
+  The same evidence_span may support several rows."""),
+]
+SYSTEM_PROMPT_V3 = SYSTEM_PROMPT_V2
+for _old, _new in _V3_EDITS:
+    assert SYSTEM_PROMPT_V3.count(_old) == 1, _old
+    SYSTEM_PROMPT_V3 = SYSTEM_PROMPT_V3.replace(_old, _new)
+
+PROMPTS = {"v1": SYSTEM_PROMPT_V1, "v2": SYSTEM_PROMPT_V2, "v3": SYSTEM_PROMPT_V3}
 CONTEXT_WINDOW_HOURS = 72
 
 # --- LLM output contract (validated with Pydantic) -------------------------
+
+def _norm_clock(v: str | None) -> str | None:
+    """Accept 'H:MM' or 'HH:MM' (24 h), return 'HH:MM'; anything else is a validation error."""
+    if v is None or v == "":
+        return None
+    m = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", v)
+    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
+        raise ValueError(f"clock_time must be HH:MM (24 h), got {v!r}")
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
 
 class LLMSymptom(BaseModel):
     symptom_code: SymptomCode
@@ -139,11 +187,15 @@ class LLMSymptom(BaseModel):
     episode_count_max: int | None = Field(None, ge=0)
     day_offset: int = Field(0, ge=-7, le=0)
     part_of_day: PartOfDay = "unknown"
+    clock_time: str | None = None              # v3: "HH:MM", only when stated / computed from a stated time
+    clock_time_approximate: bool = False
     timing_raw: str | None = None
     med_mention: str | None = None
     med_relation: MedRelation | None = None
     evidence_span: str
     confidence: float = Field(ge=0, le=1)
+
+    _clock = field_validator("clock_time")(lambda cls, v: _norm_clock(v))
 
 
 class LLMIntake(BaseModel):
@@ -152,8 +204,12 @@ class LLMIntake(BaseModel):
     dose_count: int = Field(1, ge=0, le=20)
     day_offset: int = Field(0, ge=-7, le=0)
     part_of_day: PartOfDay = "unknown"
+    clock_time: str | None = None
+    clock_time_approximate: bool = False
     evidence_span: str
     confidence: float = Field(ge=0, le=1)
+
+    _clock = field_validator("clock_time")(lambda cls, v: _norm_clock(v))
 
 
 class LLMWeight(BaseModel):
@@ -305,6 +361,14 @@ class GroqExtractor:
         return None, f"no valid output after 2 attempts: {last_err[:300] if last_err else ''}"
 
 
+def _clock_fields(day, clock: str | None, approximate: bool) -> tuple[str | None, str]:
+    """(ISO datetime or None, time_precision). 'day' is refined to 'part_of_day' later
+    by postprocess when a part of day is known."""
+    if not clock:
+        return None, "day"
+    return f"{day.isoformat()}T{clock}:00", ("approximate" if approximate else "exact")
+
+
 def parse_free_text_llm(extractor: GroqExtractor):
     """Build a text-parser function with the same signature as the rule parser."""
 
@@ -324,11 +388,14 @@ def parse_free_text_llm(extractor: GroqExtractor):
                 rep.dropped.append(f"symptom {s.symptom_code}: evidence not in text: {s.evidence_span!r}")
                 continue
             med = ctx.map_med(s.med_mention)
+            day = base + timedelta(days=s.day_offset)
+            start, precision = _clock_fields(day, s.clock_time, s.clock_time_approximate)
             try:
                 rep.symptom_events.append(SymptomEvent(
                     symptom_code=s.symptom_code, presence=s.presence, severity_level=s.severity_level,
                     severity_raw=s.severity_raw, episode_count_min=s.episode_count_min,
-                    episode_count_max=s.episode_count_max, occurred_date=base + timedelta(days=s.day_offset),
+                    episode_count_max=s.episode_count_max, occurred_date=day,
+                    occurred_start=start, time_precision=precision,
                     part_of_day=s.part_of_day, timing_raw=s.timing_raw, related_med=med,
                     med_mention=s.med_mention, med_relation=s.med_relation, evidence_span=s.evidence_span,
                     extraction_method="llm", confidence=s.confidence))
@@ -339,9 +406,11 @@ def parse_free_text_llm(extractor: GroqExtractor):
             if not evidence_in_text(i.evidence_span, text):
                 rep.dropped.append(f"intake {i.med_mention!r}: evidence not in text: {i.evidence_span!r}")
                 continue
+            day = base + timedelta(days=i.day_offset)
+            taken_at, precision = _clock_fields(day, i.clock_time, i.clock_time_approximate)
             rep.intake_events.append(IntakeEvent(
                 med=ctx.map_med(i.med_mention), med_text_raw=i.med_mention, intake_status=i.intake_status,
-                dose_count=i.dose_count, taken_date=base + timedelta(days=i.day_offset),
+                dose_count=i.dose_count, taken_date=day, taken_at=taken_at, time_precision=precision,
                 part_of_day=i.part_of_day, evidence_span=i.evidence_span, extraction_method="llm",
                 confidence=i.confidence))
 

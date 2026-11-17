@@ -174,6 +174,7 @@ CREATE TABLE medication_intake_events (
     intake_status       TEXT NOT NULL CHECK (intake_status IN ('taken', 'missed', 'vomited_up', 'unknown')),
     dose_count          INTEGER NOT NULL DEFAULT 1 CHECK (dose_count >= 0),
     taken_date          TEXT NOT NULL,
+    taken_at            TEXT,                    -- only when the patient gave a clock time
     part_of_day         TEXT NOT NULL DEFAULT 'unknown' CHECK (part_of_day IN (
                             'overnight', 'morning', 'afternoon', 'evening', 'all_day', 'unknown')),
     time_precision      TEXT NOT NULL DEFAULT 'day'

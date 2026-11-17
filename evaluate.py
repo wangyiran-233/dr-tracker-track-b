@@ -1,7 +1,7 @@
 """Evaluate the keyword baseline and the Groq LLM parser against the gold set.
 
 Usage:
-    .venv\\Scripts\\python.exe evaluate.py            # rule + LLM prompt v1 + v2 (key or cache)
+    .venv\\Scripts\\python.exe evaluate.py            # rule + every LLM prompt version (key or cache)
     .venv\\Scripts\\python.exe evaluate.py --no-llm   # baseline only
 
 Writes eval/results_<latest prompt>.md (tables + every error) and eval/predictions_<method>.json.
@@ -26,7 +26,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from cinv.common import Context
-from cinv.llm import (CONTEXT_WINDOW_HOURS, LATEST_PROMPT_VERSION, FatalLLMError, GroqExtractor,
+from cinv.llm import (CONTEXT_WINDOW_HOURS, LATEST_PROMPT_VERSION, PROMPTS, FatalLLMError, GroqExtractor,
                       parse_free_text_llm)
 from cinv.models import COUNTED, INFERRED_PRN_TEXT, ParsedReport
 from cinv.pipeline import load_rows, run
@@ -64,7 +64,9 @@ def ev_tuple(e) -> dict:
             "severity_nrs": e.severity_nrs, "episode_count_min": e.episode_count_min,
             "episode_count_max": e.episode_count_max, "occurred_date": e.occurred_date.isoformat(),
             "part_of_day": e.part_of_day, "related_med": e.related_med, "med_relation": e.med_relation,
-            "evidence_span": e.evidence_span}
+            "evidence_span": e.evidence_span,
+            "clock_time": e.occurred_start[11:16] if e.occurred_start else None,
+            "clock_time_approximate": e.time_precision == "approximate"}
 
 
 def short(e: dict) -> str:
@@ -132,6 +134,8 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
                                   (pe["episode_count_min"], pe["episode_count_max"])
             if ge["symptom_code"] in SEVERITY_SYMPTOMS and ge["presence"] != "absent":
                 checks["severity"] = ge["severity_level"] == pe["severity_level"]
+            if ge.get("clock_time") or pe["clock_time"]:          # scored only where a time exists
+                checks["clock_time"] = _clock(ge) == _clock(pe)
             for k, ok in checks.items():
                 t.add(k, ok)
             bad = [k for k, ok in checks.items() if not ok]
@@ -156,6 +160,21 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
         for x in rest:
             t.add("intake_precision", False)
             errs.append(f"INTAKE SPURIOUS {x}")
+        # clock time on intake rows, matched on (med, status, date, source)
+        pool: dict[tuple, list] = {}
+        for i in rep.intake_events:
+            pool.setdefault((i.med, i.intake_status, i.taken_date.isoformat(), med_source(i)), []).append(i)
+        for gx, key in zip(exp["intake_events"], gi):
+            cands = pool.get(key, [])
+            pr = cands.pop(0) if cands else None
+            pc = {"clock_time": pr.taken_at[11:16] if pr and pr.taken_at else None,
+                  "clock_time_approximate": bool(pr and pr.time_precision == "approximate")}
+            if gx.get("clock_time") or pc["clock_time"]:
+                ok = _clock(gx) == _clock(pc)
+                t.add("clock_time", ok)
+                if not ok:
+                    errs.append(f"WRONG      intake {key[0]} {key[1]}: clock_time expected {_fmt_clock(gx)} "
+                                f"got {_fmt_clock(pc)}")
         for _ in range(len(pi) - len(rest)):
             t.add("intake_precision", True)
 
@@ -190,7 +209,19 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
     return tallies, errors
 
 
+def _clock(e: dict) -> tuple:
+    c = e.get("clock_time")
+    return (c, bool(e.get("clock_time_approximate"))) if c else (None, False)
+
+
+def _fmt_clock(e: dict) -> str:
+    c, approx = _clock(e)
+    return "none" if not c else ("~" if approx else "") + c
+
+
 def _field(e: dict, k: str):
+    if k == "clock_time":
+        return _fmt_clock(e)
     if k == "date":
         return e["occurred_date"]
     if k == "count":
@@ -208,6 +239,7 @@ ROWS = [
     ("Severity level", "severity"),
     ("Date (occurred_date)", "date"),
     ("Part of day", "part_of_day"),
+    ("Clock time when the patient states one (incl. ~approx.)", "clock_time"),
     ("Medication intake (drug, status, date, inferred vs stated) - precision", "intake_precision"),
     ("Medication intake (drug, status, date, inferred vs stated) - recall", "intake_recall"),
     ("Review flags - precision", "flag_precision"),
@@ -249,7 +281,7 @@ def main() -> None:
     ap.add_argument("--db", type=Path, default=ROOT / "data" / "cinv.db")
     ap.add_argument("--gold", type=Path, default=ROOT / "data" / "gold_set.json")
     ap.add_argument("--no-llm", action="store_true")
-    ap.add_argument("--prompt-versions", nargs="+", default=["v1", LATEST_PROMPT_VERSION],
+    ap.add_argument("--prompt-versions", nargs="+", default=list(PROMPTS),
                     help="LLM prompt versions to compare (older ones come from the cache)")
     ap.add_argument("--out", type=Path, default=ROOT / "eval")
     args = ap.parse_args()
