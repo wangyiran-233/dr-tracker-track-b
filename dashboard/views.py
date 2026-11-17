@@ -176,7 +176,9 @@ def page_trend() -> None:
                "short orange dash at 0 = patient reported no vomiting · whisker on a bar = vague count range "
                "(\"a few times\" = 2–4) · ▲≥ = at least this many · hollow circle = nausea present but intensity "
                "not stated · orange ring = conflicting or implausible reports to review · dotted line = chemo "
-               "infusion · violet line = antiemetic change · square = clinic weight, circle = patient-reported.")
+               "infusion · violet line = antiemetic change · square = clinic weight, circle = patient-reported. "
+               "PRN doses from questionnaires are attributed to the active PRN order (inferred, not stated by the "
+               "patient); days with several active PRN orders stay unattributed and are flagged.")
     with st.expander("Medication orders"):
         st.dataframe(data.orders(pid), hide_index=True, width="stretch")
 
@@ -259,7 +261,7 @@ def _events_view(ev: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({
         "symptom": ev["symptom_code"], "presence": ev["presence"],
         "severity": ev["severity_level"].map(sev_label),
-        "score /10": ev["severity_nrs"].map(lambda x: "" if pd.isna(x) else int(x)),
+        "score /10": ev["severity_nrs"].map(lambda x: "" if pd.isna(x) else str(int(x))),
         "count": ev.apply(count, axis=1), "date": ev["occurred_date"], "part of day": ev["part_of_day"],
         "medication link": ev.apply(lambda r: "" if not r["med_relation"] else
                                     f"{r['med_relation']} {r['related_med'] or '(unmapped)'}", axis=1),
@@ -330,8 +332,8 @@ def _report_detail(r: pd.Series, rid: str) -> None:
     wts, flags = data.report_weights(rid), data.report_flags(rid)
     spans = [(e["evidence_span"], e["symptom_code"], f"{e['symptom_code']} · {e['presence']}")
              for _, e in events.iterrows()]
-    spans += [(i["evidence_span"], "medication", f"medication: {i['medication']} ({i['intake_status']})")
-              for _, i in intakes.iterrows()]
+    spans += [(i["evidence_span"], "medication", f"medication: {i['medication']} ({i['intake_status']}; "
+               f"{i['medication_source']})") for _, i in intakes.iterrows()]
     spans += [(w["evidence_span"], "weight", f"weight {w['weight_kg']} kg") for _, w in wts.iterrows()]
 
     left, right = st.columns([5, 7], gap="large")
@@ -369,6 +371,9 @@ def _report_detail(r: pd.Series, rid: str) -> None:
         if not intakes.empty:
             st.markdown("**Medication intake**")
             st.dataframe(intakes, hide_index=True, width="stretch")
+            if (intakes["medication_source"] == "inferred from active PRN order").any():
+                st.caption("ⓘ The questionnaire asks only how many as-needed doses were taken. The drug shown is "
+                           "**inferred** from the single active PRN antiemetic order, not named by the patient.")
         if not wts.empty:
             st.markdown("**Weight**")
             st.dataframe(wts, hide_index=True, width="stretch")
@@ -411,7 +416,9 @@ def page_method() -> None:
 
     st.subheader("Where the dashboard data comes from")
     st.markdown(f"- Free-text parser for the data shown: **{info['label']}**\n"
-                "- Questionnaire answers: deterministic mapping, 0–10 scores stored unchanged\n"
+                "- Questionnaire answers: deterministic mapping, 0–10 scores stored unchanged. PRN dose counts "
+                "are attributed to the single active PRN order and marked *inferred*; with several active PRN "
+                "orders the drug stays unknown and is flagged\n"
                 "- Raw reports are immutable; every structured row links back to its report and the exact "
                 "text it was based on\n"
                 "- Conflicts are kept (both versions) and flagged; daily charts take the larger count and mark the "

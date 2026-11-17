@@ -24,6 +24,9 @@ SYMPTOMS: tuple[str, ...] = ("nausea", "vomiting", "retching", "appetite_loss", 
 COUNTED = {"vomiting", "retching"}          # symptoms that have episode counts
 LOW_CONFIDENCE = 0.6                       # below this an event is flagged for review
 MAX_PLAUSIBLE_EPISODES = 20                # per report; above -> implausible_value
+# med_text_raw marker for a medication name that was inferred (questionnaire PRN
+# doses -> the single active PRN antiemetic order), not stated by the patient
+INFERRED_PRN_TEXT = "inferred from active PRN order"
 
 
 # (report_id, 'symptom' | 'intake' | 'weight', index within that report's list)

@@ -79,13 +79,13 @@ class Context:
                     hits.add(generic)
         return hits.pop() if len(hits) == 1 else None
 
-    def active_prn_antiemetic(self, patient_id: str, on: date) -> str | None:
+    def active_prn_antiemetics(self, patient_id: str, on: date) -> list[str]:
+        """All PRN antiemetics with an order active on that date. The caller only
+        infers a medication when there is exactly one candidate."""
         d = on.isoformat()
-        for o in self.orders:
-            if (o["patient_id"] == patient_id and o["is_prn"] and o["is_antiemetic"]
-                    and o["start_date"] <= d and (o["end_date"] is None or o["end_date"] >= d)):
-                return o["generic"]
-        return None
+        return sorted({o["generic"] for o in self.orders
+                       if o["patient_id"] == patient_id and o["is_prn"] and o["is_antiemetic"]
+                       and o["start_date"] <= d and (o["end_date"] is None or o["end_date"] >= d)})
 
 
 def submitted_date(submitted_at: str) -> date:

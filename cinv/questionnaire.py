@@ -9,7 +9,7 @@ import json
 from typing import Callable
 
 from .common import Context, nrs_to_level, submitted_date
-from .models import FlagCandidate, IntakeEvent, ParsedReport, SymptomEvent, WeightReading
+from .models import INFERRED_PRN_TEXT, FlagCandidate, IntakeEvent, ParsedReport, SymptomEvent, WeightReading
 
 TextParser = Callable[[str, str, str, str, Context], ParsedReport]
 
@@ -50,15 +50,29 @@ def parse_questionnaire(report_id: str, patient_id: str, answers: dict | str, su
 
     prn = q.get("prn_antiemetic_doses_24h")
     if prn:
-        med = ctx.active_prn_antiemetic(patient_id, d)
+        # The question asks for a dose count, not a drug. The drug is inferred from
+        # the orders only when exactly one PRN antiemetic is active, and marked as
+        # inferred so it is never shown as if the patient had named it.
+        candidates = ctx.active_prn_antiemetics(patient_id, d)
+        med = candidates[0] if len(candidates) == 1 else None
+        if med:
+            raw = INFERRED_PRN_TEXT
+        elif not candidates:
+            raw = "as-needed antiemetic (questionnaire); no active PRN antiemetic order"
+        else:
+            raw = (f"as-needed antiemetic (questionnaire); ambiguous: {len(candidates)} active PRN orders "
+                   f"({', '.join(candidates)})")
         rep.intake_events.append(IntakeEvent(
-            med=med, med_text_raw="as-needed anti-nausea medicine (questionnaire)", intake_status="taken",
+            med=med, med_text_raw=raw, intake_status="taken",
             dose_count=prn, taken_date=d, part_of_day="all_day",
             evidence_span=f"prn_antiemetic_doses_24h={prn}", extraction_method="questionnaire"))
         if med is None:
+            why = ("no active PRN antiemetic order on that date" if not candidates else
+                   f"{len(candidates)} PRN antiemetic orders active on that date ({', '.join(candidates)}); "
+                   "cannot tell which was taken")
             rep.flags.append(FlagCandidate(
                 flag_type="unmapped_medication", severity="info", report_id=report_id,
-                description="PRN doses reported but no active PRN antiemetic order on that date.",
+                description=f"Questionnaire reports {prn} PRN dose(s) but {why}.",
                 refs=[(report_id, "intake", len(rep.intake_events) - 1)]))
 
     w = q.get("weight_kg")

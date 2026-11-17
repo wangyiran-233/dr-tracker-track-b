@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from cinv.models import INFERRED_PRN_TEXT
 from run_queries import load_queries
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -181,10 +182,17 @@ def report_events(report_id: str) -> pd.DataFrame:
 
 
 def report_intakes(report_id: str) -> pd.DataFrame:
-    return query("""SELECT COALESCE(m.generic_name, '(unmapped)') AS medication, i.med_text_raw, i.intake_status,
-                           i.dose_count, i.taken_date, i.part_of_day, i.evidence_span, i.confidence
+    """medication_source separates a drug the patient named from one inferred from
+    the orders (questionnaire PRN counts), so an inference never looks like a quote."""
+    return query("""SELECT COALESCE(m.generic_name, '(unmapped)') AS medication,
+                           CASE WHEN i.med_text_raw = ? THEN 'inferred from active PRN order'
+                                WHEN i.extraction_method = 'questionnaire' THEN 'not determined (questionnaire)'
+                                ELSE 'patient''s words' END AS medication_source,
+                           CASE WHEN i.extraction_method = 'questionnaire' THEN ''
+                                ELSE i.med_text_raw END AS patient_wording,
+                           i.intake_status, i.dose_count, i.taken_date, i.part_of_day, i.evidence_span, i.confidence
                     FROM medication_intake_events i LEFT JOIN medications m ON m.med_id = i.med_id
-                    WHERE i.report_id = ? ORDER BY i.intake_id""", [report_id])
+                    WHERE i.report_id = ? ORDER BY i.intake_id""", [INFERRED_PRN_TEXT, report_id])
 
 
 def report_weights(report_id: str) -> pd.DataFrame:

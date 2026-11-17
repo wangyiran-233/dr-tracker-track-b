@@ -556,7 +556,7 @@
   "intake_events": [
    {
     "med": "ondansetron",
-    "med_text_raw": "as-needed anti-nausea medicine (questionnaire)",
+    "med_text_raw": "inferred from active PRN order",
     "intake_status": "taken",
     "dose_count": 1,
     "taken_date": "2026-09-16",
@@ -1180,7 +1180,7 @@
   "intake_events": [
    {
     "med": "ondansetron",
-    "med_text_raw": "as-needed anti-nausea medicine (questionnaire)",
+    "med_text_raw": "inferred from active PRN order",
     "intake_status": "taken",
     "dose_count": 2,
     "taken_date": "2026-09-30",

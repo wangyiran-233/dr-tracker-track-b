@@ -149,6 +149,10 @@ Three parsers, one output contract (`cinv/models.py`):
 
 - **Questionnaire** — deterministic. 0–10 scores stored unchanged; `severity_level` derived with a fixed mapping.
   The free-text comment field goes to the free-text parser, which is how "0 vomits + comment says 1" is caught.
+  The PRN question asks for a **dose count, not a drug**: the drug is inferred only when exactly one PRN
+  antiemetic order is active that day, and is stored with `med_text_raw = "inferred from active PRN order"` so the
+  dashboard shows it as *inferred*, never as the patient's words. With zero or several active PRN orders the drug
+  stays NULL and the report gets an `unmapped_medication` flag.
 - **Keyword baseline** (`cinv/rules.py`) — clause-level regex. The yardstick the LLM must beat, and the fallback
   when an LLM call fails for one report.
 - **Groq LLM** (`cinv/llm.py`) — `openai/gpt-oss-120b`, JSON mode, temperature 0.
@@ -173,6 +177,7 @@ Three parsers, one output contract (`cinv/models.py`):
    call counts as an LLM failure.
 
 **中文要点：** LLM 只负责"读懂语言"；日期计算、药名映射、计数约定和所有 flag 都由代码完成。
+问卷只问按需止吐药吃了几次、不问药名：只有当天恰好一条按需医嘱时才推断药名，并明确标记为"推断"；有 0 条或多条时药名留空并打 flag。
 每一行的 evidence 必须能在原文里逐字找到，找不到就丢弃并标记；配置类错误直接停止，不会静默退回规则。
 
 ---
@@ -180,8 +185,10 @@ Three parsers, one output contract (`cinv/models.py`):
 ## Evaluation
 
 Gold set: **30 reports** (23 free text, 7 questionnaires) — all 18 hand-written tricky reports plus a stratified
-sample of 12 routine ones. Run `evaluate.py`; full tables and every error are in `eval/results_v2.md`
-(`eval/results_v1.md` is the v1 snapshot).
+sample of 12 routine ones; the 18 tricky labels were human-reviewed (see [Where AI was used](#where-ai-was-used)).
+Run `evaluate.py`; full tables and every error are in `eval/results_v2.md` (`eval/results_v1.md` is the v1
+snapshot). Medication intake rows are scored on drug, status, date **and** whether the drug was stated by the
+patient or inferred from orders.
 
 **Free-text reports (n = 23)**
 
@@ -252,14 +259,28 @@ status colours only for red flags / review items and always with a text label.
 |---|---|---|
 | **Free-text extraction** (Groq, in the product) | Gold-set evaluation; verbatim evidence check; schema validation; v1→v2 driven by specific errors | Dates, drug identity, counting conventions, flags, conflict resolution — all deterministic code |
 | **Coding assistant** (Claude, for writing code, SQL, the data generator and this README) | Code was run end to end; dashboard pages tested headlessly; charts rendered and inspected; failures fixed and re-run | Design choices were set or approved by the author: track and scenario, schema, conflict policy ("take the larger count and flag"), dashboard page spec |
-| **Gold labels for the 18 tricky cases** | Each case has a written rationale in `gold_set.json` (`notes`) | **TODO (author): confirm these labels were reviewed by a human before presenting them as human-annotated.** The 12 routine labels come from the generator's hidden truth |
+| **Gold labels for the 18 tricky cases** | **Drafted by Claude, then reviewed case by case by Yiran.** Review record: `data/gold_review.csv` (verdict + comment per case) | Labels were not accepted on the AI's word: 16 agreed, 2 disagreed and were revised (see below). The 12 routine labels come from the generator's hidden truth and were not part of this review |
+
+**Human review of the gold set.** All 18 hand-written cases were reviewed one by one; result **16 agree,
+2 disagree**. Both disagreements (**R0035, R0095** — questionnaires) raised the same issue: the PRN drug
+(ondansetron) had been labelled as if the patient named it, but it was *inferred* from the single active PRN order.
+Changes made: those two labels now carry `med_source = "inferred_prn_order"` (the other 6 intake labels are
+`patient_words`); the parser marks inferred drugs, leaves the drug NULL with an `unmapped_medication` flag when
+several PRN orders are active, and the dashboard shows "inferred" vs "patient's words"; the evaluation now checks
+this distinction. No other label values changed; all metrics were unchanged after re-running from the cache.
+Two reviewer comments on agreed cases (R0003, R0067: "the patient gave a clock time — store it") are scheduled as a
+next step below.
 
 Privacy: only synthetic data is sent to the API. Real patient data would require appropriate agreements and a
 privacy review before any third-party model call; no compliance claim is made here.
 
 **中文要点：** LLM 只用于从自由文本中抽取信息，并通过 gold set、逐字 evidence 检查和 schema 校验来核对；
 日期、药名、flag 等都不依赖 LLM。代码由 AI 编程助手协助编写，并经过实际运行和测试。
-18 条疑难 case 的标注由 AI 起草，作者需要在展示前人工复核（见上表 TODO）。
+18 条疑难 case 的标注由 Claude 起草，Yiran 逐条人工复核（记录见 `data/gold_review.csv`）：16 条同意，2 条不同意。
+不同意的 R0035、R0095 都是同一个问题：问卷里的按需止吐药药名是根据医嘱推断出来的，却被标得像患者自己说的。
+修改内容：这 2 条标注改为 `med_source = inferred_prn_order`；parser 会标记"推断"，有多条按需医嘱时药名留空并打 flag；
+看板区分"推断"和"患者原话"；评测也会核对这一区分。其他标注值没有改动，重跑评测（只用缓存）后所有指标不变。
+R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"下一步"。
 
 ---
 
@@ -292,9 +313,16 @@ privacy review before any third-party model call; no compliance claim is made he
   weakens the anti-fabrication guarantee (fragments from different sentences can assemble a meaning the patient
   never stated). If ever adopted: same sentence only, original order, ≤ 2 fragments, lower confidence, distinct
   highlight.
+- **Ask for the drug, not just a count (product fix).** Generate the questionnaire's PRN item from the patient's
+  active orders — e.g. "How many doses of ondansetron (Zofran) did you take in the last 24 h?", one item per PRN
+  order — so the drug is reported by the patient instead of inferred. The prototype currently infers and marks it.
+- **Store clock times the patient gives (with v3, from human review of R0003 / R0067).** "Took it at 8 … threw it
+  up 20 minutes later", "around 2pm": today only `part_of_day` is kept. The schema already has `occurred_start` /
+  `occurred_end` and `time_precision` (`exact` / `approximate`); the prompt and parser need to return a clock time
+  when one is stated, with the gold set extended to score it. Rule: only times the patient states or that follow
+  arithmetically from them (8:00 + 20 min → ~08:20, `approximate`); never a time inferred from submission time.
 - **Held-out evaluation set** in varied wording, written without looking at the rules.
-- **Gold-label review** of the 18 hand-written cases by a human (see the TODO above).
-- Move the ad-hoc mock-client and schema checks into a `tests/` suite.
+- Move the ad-hoc mock-client and schema checks (including the multi-PRN-order branch) into a `tests/` suite.
 
 **Known limitations**
 
@@ -304,10 +332,14 @@ privacy review before any third-party model call; no compliance claim is made he
 - Correction context is only the patient's previous report within 72 h.
 - LLM self-reported confidence is not calibrated; it is only a secondary flag.
 - Red flags are display-prominence rules for review, not clinical triage.
+- Questionnaire PRN doses are attributed to the single active PRN order by inference (marked as such); a patient
+  could have taken something else (e.g. an over-the-counter medicine). The synthetic data has no day with several
+  active PRN orders, so the ambiguous branch is covered by an ad-hoc check, not by the gold set.
 - "Last visit" = last infusion day (visits coincide with infusions in the synthetic data).
 - Cache keys include model, prompt version, input, context and (for reasoning models) reasoning effort. Entries
   written before effort was added were all produced at `medium`, which therefore adds no suffix, so existing
   cache entries remain valid.
 
 **中文要点：** 还有 12 条报告等明天额度恢复后用 LLM 补跑；目前看板显示的是关键词规则版本的数据（横幅有标明）。
-R0043 的 v3 方案是改 prompt 让模型引用完整连续的短语，不放宽 evidence 检查。还需要一组留出集，并由人工复核 18 条疑难标注。
+R0043 的 v3 方案是改 prompt 让模型引用完整连续的短语，不放宽 evidence 检查；和 v3 一起做的还有"病人给出具体或大概时间时存进
+occurred_start"（来自人工复核 R0003、R0067 的意见）。另外还需要一组留出集。

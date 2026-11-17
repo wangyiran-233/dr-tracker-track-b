@@ -117,7 +117,11 @@ CONVENTIONS = {
     "time": "occurred_date is resolved from relative words using submitted_at. "
             "'overnight' belongs to the date the night started. Questionnaire answers cover "
             "the submission day and use part_of_day='all_day'. No time words => 'unknown'.",
-    "questionnaire_prn": "prn_antiemetic_doses_24h maps to the patient's active PRN antiemetic.",
+    "questionnaire_prn": "The questionnaire asks for a PRN dose count, not a drug. The drug is inferred only "
+                         "when exactly one PRN antiemetic order is active that day (med_source="
+                         "'inferred_prn_order'); with zero or several active PRN orders med is NULL and the "
+                         "report gets an unmapped_medication flag. Medications named in free text have "
+                         "med_source='patient_words'.",
     "fluids": "kept_fluids_down: yes => unable_to_keep_fluids absent; partly => present, "
               "severity NULL; no => present + red_flag.",
     "flags": "'flags' are detectable from the report alone; 'cross_report_flags' need other "
@@ -148,9 +152,11 @@ def sym(code, presence, occurred_date, part="unknown", level=None, nrs=None,
     }
 
 
-def intake(med, status, taken_date, part="unknown", dose_count=1):
+def intake(med, status, taken_date, part="unknown", dose_count=1, source="patient_words"):
+    """source: 'patient_words' (named in free text) or 'inferred_prn_order'
+    (questionnaire PRN count attributed to the single active PRN order)."""
     return {"med": med, "intake_status": status, "dose_count": dose_count,
-            "taken_date": taken_date, "part_of_day": part}
+            "taken_date": taken_date, "part_of_day": part, "med_source": source}
 
 
 def expected(symptoms=(), intakes=(), weights=(), flags=(), cross_flags=(), supersedes=None):
@@ -332,7 +338,8 @@ def questionnaire_expected(p: Patient, k: int, q: dict) -> dict:
             flags.append("red_flag")
     intakes = []
     if q["prn_antiemetic_doses_24h"] > 0:
-        intakes.append(intake(p.prn_med, "taken", d, "all_day", q["prn_antiemetic_doses_24h"]))
+        intakes.append(intake(p.prn_med, "taken", d, "all_day", q["prn_antiemetic_doses_24h"],
+                              source="inferred_prn_order"))
     weights = [{"weight_kg": q["weight_kg"], "measured_date": d}] if q.get("weight_kg") is not None else []
     return expected(syms, intakes, weights, flags)
 
@@ -410,10 +417,13 @@ def build_special_cases() -> tuple[list[dict], dict[str, set[int]]]:
                   sym("vomiting", "present", P5.iso(6), "afternoon", cmin=1, cmax=1),
                   sym("appetite_loss", "present", P5.iso(6), "all_day", level=2, nrs=6),
                   sym("unable_to_keep_fluids", "absent", P5.iso(6), "all_day", level=0)],
-                 [intake("ondansetron", "taken", P5.iso(6), "all_day", 1)],
+                 [intake("ondansetron", "taken", P5.iso(6), "all_day", 1, source="inferred_prn_order")],
                  flags=["intra_report_conflict"]),
         ["intra_report_conflict"],
-        "Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1.", {6})
+        "Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1. "
+        "Revised after human review: the PRN drug is inferred from the single active PRN order, not stated "
+        "by the patient -> med_source 'inferred_prn_order' (NULL + unmapped_medication if several are active).",
+        {6})
 
     # S5 two reports, same day, disagree
     add("S5a", P1, ts(P1, 24, 19, 30), "free_text",
@@ -427,11 +437,13 @@ def build_special_cases() -> tuple[list[dict], dict[str, set[int]]]:
                   sym("vomiting", "present", P1.iso(24), "all_day", cmin=1, cmax=1),
                   sym("appetite_loss", "present", P1.iso(24), "all_day", level=3, nrs=8),
                   sym("unable_to_keep_fluids", "absent", P1.iso(24), "all_day", level=0)],
-                 [intake("ondansetron", "taken", P1.iso(24), "all_day", 2)],
+                 [intake("ondansetron", "taken", P1.iso(24), "all_day", 2, source="inferred_prn_order")],
                  cross_flags=["cross_report_conflict"]),
         ["cross_report_conflict"],
         "Questionnaire says 1 vomit in 24h, earlier text said 3 this afternoon. "
-        "Daily view: max(1, 3) = 3 with has_open_conflict.", {24})
+        "Daily view: max(1, 3) = 3 with has_open_conflict. "
+        "Revised after human review: PRN drug inferred from the active order -> med_source "
+        "'inferred_prn_order' (same issue as S4).", {24})
 
     # S6 correction next morning
     add("S6a", P2, ts(P2, 3, 20, 15), "free_text",

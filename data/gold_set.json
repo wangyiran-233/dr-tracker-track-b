@@ -8,7 +8,7 @@
       "absent": "presence='absent' => severity_level 0; for vomiting/retching counts 0/0.",
       "counts": "'once' 1/1, 'twice' 2/2, 'a few times' 2/4, present but no number => 1/NULL (at least one), implausible numbers => 1/NULL + implausible_value flag.",
       "time": "occurred_date is resolved from relative words using submitted_at. 'overnight' belongs to the date the night started. Questionnaire answers cover the submission day and use part_of_day='all_day'. No time words => 'unknown'.",
-      "questionnaire_prn": "prn_antiemetic_doses_24h maps to the patient's active PRN antiemetic.",
+      "questionnaire_prn": "The questionnaire asks for a PRN dose count, not a drug. The drug is inferred only when exactly one PRN antiemetic order is active that day (med_source='inferred_prn_order'); with zero or several active PRN orders med is NULL and the report gets an unmapped_medication flag. Medications named in free text have med_source='patient_words'.",
       "fluids": "kept_fluids_down: yes => unable_to_keep_fluids absent; partly => present, severity NULL; no => present + red_flag.",
       "flags": "'flags' are detectable from the report alone; 'cross_report_flags' need other reports (conflict / duplicate checker)."
     },
@@ -58,14 +58,16 @@
             "intake_status": "vomited_up",
             "dose_count": 1,
             "taken_date": "2026-09-09",
-            "part_of_day": "morning"
+            "part_of_day": "morning",
+            "med_source": "patient_words"
           },
           {
             "med": "ondansetron",
             "intake_status": "taken",
             "dose_count": 1,
             "taken_date": "2026-09-09",
-            "part_of_day": "morning"
+            "part_of_day": "morning",
+            "med_source": "patient_words"
           }
         ],
         "weights": [],
@@ -255,7 +257,8 @@
             "intake_status": "taken",
             "dose_count": 3,
             "taken_date": "2026-09-11",
-            "part_of_day": "unknown"
+            "part_of_day": "unknown",
+            "med_source": "patient_words"
           }
         ],
         "weights": [],
@@ -386,7 +389,8 @@
             "intake_status": "taken",
             "dose_count": 1,
             "taken_date": "2026-09-14",
-            "part_of_day": "afternoon"
+            "part_of_day": "afternoon",
+            "med_source": "patient_words"
           }
         ],
         "weights": [],
@@ -413,7 +417,7 @@
       "case_tags": [
         "intra_report_conflict"
       ],
-      "notes": "Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1.",
+      "notes": "Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1. Revised after human review: the PRN drug is inferred from the single active PRN order, not stated by the patient -> med_source 'inferred_prn_order' (NULL + unmapped_medication if several are active).",
       "expected": {
         "symptom_events": [
           {
@@ -483,7 +487,8 @@
             "intake_status": "taken",
             "dose_count": 1,
             "taken_date": "2026-09-16",
-            "part_of_day": "all_day"
+            "part_of_day": "all_day",
+            "med_source": "inferred_prn_order"
           }
         ],
         "weights": [],
@@ -652,7 +657,8 @@
             "intake_status": "missed",
             "dose_count": 1,
             "taken_date": "2026-09-19",
-            "part_of_day": "evening"
+            "part_of_day": "evening",
+            "med_source": "patient_words"
           }
         ],
         "weights": [],
@@ -731,7 +737,8 @@
             "intake_status": "taken",
             "dose_count": 1,
             "taken_date": "2026-09-24",
-            "part_of_day": "afternoon"
+            "part_of_day": "afternoon",
+            "med_source": "patient_words"
           }
         ],
         "weights": [],
@@ -919,7 +926,7 @@
       "case_tags": [
         "cross_report_conflict"
       ],
-      "notes": "Questionnaire says 1 vomit in 24h, earlier text said 3 this afternoon. Daily view: max(1, 3) = 3 with has_open_conflict.",
+      "notes": "Questionnaire says 1 vomit in 24h, earlier text said 3 this afternoon. Daily view: max(1, 3) = 3 with has_open_conflict. Revised after human review: PRN drug inferred from the active order -> med_source 'inferred_prn_order' (same issue as S4).",
       "expected": {
         "symptom_events": [
           {
@@ -977,7 +984,8 @@
             "intake_status": "taken",
             "dose_count": 2,
             "taken_date": "2026-09-30",
-            "part_of_day": "all_day"
+            "part_of_day": "all_day",
+            "med_source": "inferred_prn_order"
           }
         ],
         "weights": [],

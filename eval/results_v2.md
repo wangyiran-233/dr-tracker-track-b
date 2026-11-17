@@ -15,8 +15,8 @@ Gold set: 30 reports (23 free text, 7 questionnaires). Questionnaire fields are 
 | Severity level | 94% (17/18) | 100% (18/18) | 100% (18/18) |
 | Date (occurred_date) | 100% (39/39) | 100% (39/39) | 97% (38/39) |
 | Part of day | 90% (35/39) | 85% (33/39) | 92% (36/39) |
-| Medication intake - precision | 100% (6/6) | 100% (6/6) | 100% (6/6) |
-| Medication intake - recall | 100% (6/6) | 100% (6/6) | 100% (6/6) |
+| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (6/6) | 100% (6/6) | 100% (6/6) |
+| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (6/6) | 100% (6/6) | 100% (6/6) |
 | Review flags - precision | 100% (4/4) | 100% (4/4) | 100% (5/5) |
 | Review flags - recall | 80% (4/5) | 80% (4/5) | 100% (5/5) |
 | Correction linked to original | 0% (0/1) | 0% (0/1) | 100% (1/1) |
@@ -38,8 +38,8 @@ Reports where the parser produced no usable output (scored as all-missed): Rule 
 | Severity level | 100% (10/10) | 100% (10/10) | 100% (10/10) |
 | Date (occurred_date) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
 | Part of day | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Medication intake - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Medication intake - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) |
 | Review flags - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) |
 | Review flags - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) |
 | Report fully correct - hand-annotated tricky | 100% (2/2) | 100% (2/2) | 100% (2/2) |

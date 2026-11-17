@@ -1,0 +1,51 @@
+﻿report_id,case_type,patient_words,submitted_at,my_label,notes,my_verdict,my_comment
+R0003,vomited_up_dose,Took my ondansetron at 8 this morning but threw it up about 20 minutes later. Took another at 10 and that one stayed down.,2026/9/9 11:00,"vomiting, present, 1 time(s), vomited_up_dose ondansetron, morning, 2026-09-09
+medication: ondansetron vomited_up, morning, 2026-09-09
+medication: ondansetron taken, morning, 2026-09-09","Two intake rows: one vomited up, one taken.",agree,"Patient gave specific times (~08:20 vomit, 10:00 second dose). Could store approximate time instead of only part_of_day."
+R0005,"vague_count, relative_time","Rough night. Threw up a few times after midnight, lost count honestly. Still a bit queasy this morning.",2026/9/10 8:10,"vomiting, present, 2–4 times, overnight, 2026-09-09
+nausea, present, mild, morning, 2026-09-10",'a few times' -> 2-4. 'After midnight' in a morning report = the night that started the previous day (convention). 'a bit queasy' -> mild.,agree,
+R0007,correction_target,"Threw up once today after dinner, nausea moderate.",2026/9/10 20:15,"vomiting, present, 1 time(s), evening, 2026-09-10
+nausea, present, moderate, time of day not stated, 2026-09-10",Will be corrected by R0009.,agree,
+R0009,correction,"Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.",2026/9/11 8:30,"vomiting, present, 3 time(s), time of day not stated, 2026-09-10
+corrects report R0007","Supersedes the vomiting event from R0007 (old row -> status 'superseded', not deleted).",agree,"Considered inheriting “evening” from R0007, but the correction only changes the count; the extra episodes may have occurred at other times. Keeping time unstated avoids assuming."
+R0026,"despite_medication, brand_name",Still really nauseous even after taking Zofran at lunch. No vomiting.,2026/9/14 19:20,"nausea, present, severe, despite_taking ondansetron, afternoon, 2026-09-14
+vomiting, absent, time of day not stated, 2026-09-14
+medication: ondansetron taken, afternoon, 2026-09-14",'really nauseous' -> severe (3). Zofran -> ondansetron.,agree,
+R0035,intra_report_conflict,"[questionnaire] nausea 5/10; vomiting episodes 0; appetite loss 6/10; kept fluids down: yes; PRN doses 1; comment: ""Threw up once after lunch, forgot to count it above, sorry.""",2026/9/16 20:30,"nausea, present, moderate (5/10), all day, 2026-09-16
+vomiting, absent, all day, 2026-09-16
+vomiting, present, 1 time(s), afternoon, 2026-09-16
+appetite loss, present, moderate (6/10), all day, 2026-09-16
+unable to keep fluids, absent, all day, 2026-09-16
+medication: ondansetron taken, all day, 2026-09-16
+flags: intra_report_conflict","Keep BOTH vomiting rows (field says 0, comment says 1) and flag. Daily view shows 1.",disagree,"Medication name is inferred from the active PRN order, not stated by the patient. Should be marked as inferred, and left NULL + flagged when multiple PRN orders are active."
+R0036,vague_presence,"Felt kind of off today, not sure if it's nausea or just tired. Ate okay.",2026/9/16 20:40,"nausea, uncertain, time of day not stated, 2026-09-16
+appetite loss, absent, time of day not stated, 2026-09-16","Patient is unsure -> presence 'uncertain', severity NULL. Must not become mild nausea.",agree,
+R0051,"missed_dose, relative_severity",Forgot my olanzapine last night. Nausea is worse this morning.,2026/9/20 9:00,"nausea, present, intensity not stated, morning, 2026-09-20
+medication: olanzapine missed, evening, 2026-09-19","'worse' is relative, not a level -> severity NULL. Missed dose dated the previous evening.",agree,
+R0055,weight_in_text,Weighed myself this morning: 72.1 kg. Appetite still poor.,2026/9/21 8:05,"appetite loss, present, intensity not stated, time of day not stated, 2026-09-21
+weight: 72.1 kg, 2026-09-21",Weight goes to weight_measurements (patient_reported).,agree,
+R0067,unmapped_medication,"Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.",2026/9/24 19:45,"nausea, present, intensity not stated, afternoon, 2026-09-24
+medication: (unmapped) taken, afternoon, 2026-09-24
+flags: unmapped_medication","Likely ondansetron ODT, but the parser must not guess: med NULL + flag for review. Nausea present, no intensity given.",agree,"Correctly refuses to guess the drug (several anti-nausea drugs come as orally disintegrating tablets) and flags it. Patient gave an approximate time (~2pm); same as R0003, could store approximate time instead of only part_of_day."
+R0077,relative_time,"Day before yesterday was the worst, vomited 4 times. Today just mild nausea.",2026/9/26 20:10,"vomiting, present, 4 time(s), time of day not stated, 2026-09-24
+nausea, present, mild, time of day not stated, 2026-09-26",Vomiting belongs to day-2 relative to submission.,agree,
+R0087,"negation, hedged_severity","No throwing up today. Nausea pretty much gone, maybe a tiny bit after breakfast.",2026/9/29 19:05,"vomiting, absent, time of day not stated, 2026-09-29
+nausea, present, mild, morning, 2026-09-29","'pretty much gone, maybe a tiny bit' -> present, mild, morning.",agree,
+R0089,implausible_value,"Threw up like a hundred times today, it just would not stop.",2026/9/29 20:50,"vomiting, present, at least 1 time(s), time of day not stated, 2026-09-29
+flags: implausible_value","Hyperbole: do not store 100. At least 1, upper bound unknown, flag for follow-up.",agree,
+R0093,cross_report_conflict,"Vomited 3 times this afternoon, could barely get off the couch.",2026/9/30 19:30,"vomiting, present, 3 time(s), afternoon, 2026-09-30",First half of a same-day conflict (see R0095).,agree,
+R0095,cross_report_conflict,[questionnaire] nausea 7/10; vomiting episodes 1; appetite loss 8/10; kept fluids down: yes; PRN doses 2,2026/9/30 21:00,"nausea, present, severe (7/10), all day, 2026-09-30
+vomiting, present, 1 time(s), all day, 2026-09-30
+appetite loss, present, severe (8/10), all day, 2026-09-30
+unable to keep fluids, absent, all day, 2026-09-30
+medication: ondansetron taken (2 doses), all day, 2026-09-30
+flags: cross_report_conflict","Questionnaire says 1 vomit in 24h, earlier text said 3 this afternoon. Daily view: max(1, 3) = 3 with has_open_conflict.",disagree,Same PRN inference issue as R0035
+R0117,"severity_mismatch, red_flag","Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.",2026/10/5 20:00,"nausea, present, mild, time of day not stated, 2026-10-05
+unable to keep fluids, present, all day, 2026-10-05
+vomiting, present, 4 time(s), time of day not stated, 2026-10-05
+flags: severity_mismatch, red_flag","Store 'mild' as said, but flag the mismatch; can't keep fluids down is surfaced as a red flag (dashboard prominence, not a diagnosis).",agree,
+R0133,duplicate_original,"Mild nausea after lunch, no vomiting.",2026/10/9 14:02,"nausea, present, mild, afternoon, 2026-10-09
+vomiting, absent, time of day not stated, 2026-10-09",Original of a double submission.,agree,
+R0134,duplicate_report,"Mild nausea after lunch, no vomiting.",2026/10/9 14:03,"nausea, present, mild, afternoon, 2026-10-09
+vomiting, absent, time of day not stated, 2026-10-09
+flags: duplicate_report (detected across reports)",Same text one minute later. Flag as duplicate; daily view max-rule also prevents double counting.,agree,

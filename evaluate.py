@@ -28,7 +28,7 @@ from pathlib import Path
 from cinv.common import Context
 from cinv.llm import (CONTEXT_WINDOW_HOURS, LATEST_PROMPT_VERSION, FatalLLMError, GroqExtractor,
                       parse_free_text_llm)
-from cinv.models import COUNTED, ParsedReport
+from cinv.models import COUNTED, INFERRED_PRN_TEXT, ParsedReport
 from cinv.pipeline import load_rows, run
 from cinv.rules import parse_free_text_rule
 
@@ -48,6 +48,13 @@ class Tally:
 
     def get(self, metric: str) -> tuple[int, int]:
         return tuple(self.c[metric])
+
+
+def med_source(i) -> str:
+    """How the parser knows the drug: inferred from orders, or named by the patient."""
+    if i.med_text_raw == INFERRED_PRN_TEXT:
+        return "inferred_prn_order"
+    return "unmapped" if i.med is None and i.extraction_method == "questionnaire" else "patient_words"
 
 
 def ev_tuple(e) -> dict:
@@ -134,9 +141,10 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
                     f"{k} expected {_field(ge, k)} got {_field(pe, k)}" for k in bad)
                     + f"  evidence={pe['evidence_span']!r}")
 
-        # intake rows: (med, status, date)
-        gi = [(i["med"], i["intake_status"], i["taken_date"]) for i in exp["intake_events"]]
-        pi = [(i.med, i.intake_status, i.taken_date.isoformat()) for i in rep.intake_events]
+        # intake rows: (med, status, date, med_source) - an inferred drug name must be marked as inferred
+        gi = [(i["med"], i["intake_status"], i["taken_date"], i.get("med_source", "patient_words"))
+              for i in exp["intake_events"]]
+        pi = [(i.med, i.intake_status, i.taken_date.isoformat(), med_source(i)) for i in rep.intake_events]
         rest = list(pi)
         for x in gi:
             hit = x in rest
@@ -200,8 +208,8 @@ ROWS = [
     ("Severity level", "severity"),
     ("Date (occurred_date)", "date"),
     ("Part of day", "part_of_day"),
-    ("Medication intake - precision", "intake_precision"),
-    ("Medication intake - recall", "intake_recall"),
+    ("Medication intake (drug, status, date, inferred vs stated) - precision", "intake_precision"),
+    ("Medication intake (drug, status, date, inferred vs stated) - recall", "intake_recall"),
     ("Review flags - precision", "flag_precision"),
     ("Review flags - recall", "flag_recall"),
     ("Correction linked to original", "correction_linked"),
