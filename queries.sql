@@ -66,7 +66,9 @@ ORDER BY c.patient_id, period DESC, d.cinv_phase;
 
 -- name: pre_visit_snapshot
 -- The "30 seconds before walking in" view: last 7 days per patient, relative
--- to each patient's latest report. Sorted so patients needing attention come first:
+-- to each patient's latest report. days_reported_7d counts DISTINCT occurred_date (the day the
+-- symptoms happened, not the day the report was submitted), so next-morning reports match the chart
+-- window. Sorted so patients needing attention come first:
 -- open red flags, then other open (non-info) flags, then weight alert, then worst nausea.
 WITH latest AS (
     SELECT patient_id, MAX(date(submitted_at)) AS as_of FROM raw_reports GROUP BY patient_id
@@ -79,8 +81,8 @@ win AS (
 SELECT l.patient_id,
        p.display_name,
        l.as_of,
-       (SELECT COUNT(DISTINCT date(r.submitted_at)) FROM raw_reports r
-         WHERE r.patient_id = l.patient_id AND date(r.submitted_at) > date(l.as_of, '-7 days'))   AS days_reported_7d,
+       (SELECT COUNT(DISTINCT w.occurred_date) FROM win w
+         WHERE w.patient_id = l.patient_id)                                                        AS days_reported_7d,
        (SELECT MAX(w.max_severity_level) FROM win w
          WHERE w.patient_id = l.patient_id AND w.symptom_code = 'nausea')                          AS worst_nausea_0_4,
        (SELECT SUM(w.episodes_min) FROM win w

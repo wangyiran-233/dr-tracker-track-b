@@ -68,18 +68,59 @@ def sev_label(v) -> str:
 # 1. Overview
 # ---------------------------------------------------------------------------
 
+def _trigger_quote(description: str, words: str | None) -> str:
+    """The patient's own words behind a red flag: the quoted evidence span if the
+    flag has one, else the report text / comment, else the flag description."""
+    m = re.search(r"[\"']([^\"']{3,})[\"']\s*$", description)
+    return m.group(1) if m else (words or description)
+
+
+def needs_attention(snap: pd.DataFrame) -> None:
+    """Banner above the KPIs: patients with an open red flag or a weight alert, each with
+    the triggering words and a one-click jump to that patient's trend page."""
+    queue = data.review_queue()
+    reds = queue[queue["flag_type"] == "red_flag"]
+    items = []
+    for _, r in snap.iterrows():
+        pid = r["patient_id"]
+        quotes = [(_trigger_quote(f["description"], f["patient_words"]), str(f["submitted_at"]).replace("T", " ")[:16])
+                  for _, f in reds[reds["patient_id"] == pid].iterrows()]
+        weight = (f"Weight {r['weight_pct_change']:+.1f}% vs baseline (below alert line)"
+                  if r["below_weight_alert"] and not pd.isna(r["weight_pct_change"]) else None)
+        if quotes or weight:
+            items.append((pid, r["display_name"].replace(" (synthetic)", ""), quotes, weight))
+    if not items:
+        st.success("✓ Needs attention: no open red flags or weight alerts.")
+        return
+    with st.container(border=True):
+        st.error(f"### 🚨 Needs Attention — {len(items)} patient{'s' if len(items) != 1 else ''}", icon=None)
+        for pid, name, quotes, weight in items:
+            left, right = st.columns([5, 1], vertical_alignment="center")
+            lines = [f"**{pid} · {name}**"]
+            lines += [f"🔴 “{q}” <small>({t})</small>" for q, t in quotes]
+            if weight:
+                lines.append(f"⚖️ {weight}")
+            left.markdown("<br>".join(lines), unsafe_allow_html=True)
+            if right.button("Open trend →", key=f"attn_{pid}", width="stretch"):
+                st.session_state["pid"] = pid
+                st.switch_page(PAGES["trend"])
+
+
 def page_overview() -> None:
     if not header("Patients — pre-visit overview",
                   "Last 7 days for each patient, counted back from that patient's most recent report. "
                   "Patients needing attention are listed first. Select a row to open the patient."):
         return
     snap = data.snapshot()
+    needs_attention(snap)
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Patients", len(snap))
-    c2.metric("🔴 With open red flag", int((snap["open_red_flags"] > 0).sum()))
-    c3.metric("⚠️ With open review items", int((snap["open_flags"] > 0).sum()))
-    c4.metric("⚖️ Weight below alert line", int(snap["below_weight_alert"].fillna(0).astype(bool).sum()))
+    cols = st.columns(4)
+    for col, (label, value) in zip(cols, [
+            ("Patients", len(snap)),
+            ("🔴 With open red flag", int((snap["open_red_flags"] > 0).sum())),
+            ("⚠️ With open review items", int((snap["open_flags"] > 0).sum())),
+            ("⚖️ Weight below alert line", int(snap["below_weight_alert"].fillna(0).astype(bool).sum()))]):
+        col.metric(label, value, border=True)
 
     def attention(r) -> str:
         if r["open_red_flags"] > 0:
@@ -144,25 +185,25 @@ def page_trend() -> None:
             dn = cur["worst_nausea"] - prev["worst_nausea"]
         cols[0].metric("Worst nausea", sev_label(cur["worst_nausea"]),
                        None if dn is None else (f"{dn:+d} level vs last cycle" if dn else "same as last cycle"),
-                       delta_color="inverse")
+                       delta_color="inverse", border=True)
         vtxt = f"{'≥ ' if cur['vomit_open'] else ''}{cur['vomit_min']}"
         dv = None if not prev else cur["vomit_min"] - prev["vomit_min"]
         cols[1].metric("Vomiting episodes", vtxt, None if dv is None else f"{dv:+d} vs last cycle",
-                       delta_color="inverse")
+                       delta_color="inverse", border=True)
         dp = None if not prev else cur["prn"] - prev["prn"]
         cols[2].metric("PRN antiemetic doses", cur["prn"], None if dp is None else f"{dp:+d} vs last cycle",
-                       delta_color="inverse")
+                       delta_color="inverse", border=True)
         if s["weight_now"] is not None:
             dw = None if s["weight_at_visit"] is None else s["weight_now"] - s["weight_at_visit"]
             cols[3].metric("Weight", f"{s['weight_now']:.1f} kg",
-                           None if dw is None else f"{dw:+.1f} kg since visit", delta_color="normal")
+                           None if dw is None else f"{dw:+.1f} kg since visit", delta_color="normal", border=True)
             if s["weight_below_alert"]:
                 cols[3].markdown(f"⚠️ **below alert line** ({s['weight_pct_baseline']:+.1f}% vs baseline)")
             else:
                 cols[3].caption(f"{s['weight_pct_baseline']:+.1f}% vs baseline")
         cols[4].metric("Open review items", s["flags_open_total"],
                        f"{s['flags_since']} new since visit" if s["flags_since"] else "none new",
-                       delta_color="off")
+                       delta_color="off", border=True)
         if s["red_since"]:
             cols[4].markdown(f"🔴 **{s['red_since']} red flag(s) since visit**")
         st.caption(f"Reported on {cur['days_reported']} of {s['n_days']} days. Deltas compare with the same days "
