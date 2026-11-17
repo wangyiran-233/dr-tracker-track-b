@@ -11,7 +11,7 @@ matters in about 30 seconds.
 >
 > **全部为合成数据。** 临床术语仅"参考常见定义"，不构成诊断或临床建议。
 
-**Stack:** SQLite · Python 3.13 · Pydantic · Groq (`openai/gpt-oss-120b`) · Streamlit + Plotly
+**Stack:** SQLite · Python 3.11+ (developed on 3.13) · Pydantic · Groq (`openai/gpt-oss-120b`) · Streamlit + Plotly
 
 ---
 
@@ -32,23 +32,50 @@ matters in about 30 seconds.
 
 ## Quick start
 
-```powershell
-py -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+**Requires Python 3.11 or newer** (developed and tested on 3.13). No API key is needed to run the demo.
 
-.venv\Scripts\python.exe generate_data.py            # synthetic dataset + gold set (deterministic, seed 42)
-.venv\Scripts\python.exe init_db.py                  # build data/cinv.db from schema.sql
-.venv\Scripts\python.exe parse_reports.py --text-parser rule   # or: --text-parser llm (needs GROQ_API_KEY)
-.venv\Scripts\python.exe run_queries.py              # the 4 queries in queries.sql
-.venv\Scripts\python.exe evaluate.py                 # rule vs LLM v1 vs v2 on the gold set
-.venv\Scripts\python.exe -m streamlit run app.py     # dashboard
+**See the dashboard — one command** (creates `.venv`, installs dependencies, starts Streamlit at
+http://localhost:8501):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run_demo.ps1     # Windows
+```
+```bash
+bash run_demo.sh                                              # macOS / Linux / Git Bash
 ```
 
-For the LLM parser, copy `.env.example` to `.env` and set `GROQ_API_KEY`. Optional: `GROQ_MODEL`,
-`GROQ_REASONING_EFFORT` (default `medium`), `GROQ_PROMPT_VERSION` (default `v2`).
+The dashboard reads the committed, 100 % synthetic **`data/cinv_demo.db`**: the full 184-report dataset parsed with
+**LLM prompt v2** (`openai/gpt-oss-120b`), rebuilt from the response cache with zero API calls and zero keyword-rule
+fallbacks. Set `CINV_DB=<path>` to point the dashboard at another database.
 
-LLM responses are cached in `data/llm_cache.json` (only schema-valid completions are ever cached), so
-`evaluate.py` reproduces the published results **without an API key**.
+**Prompt version.** One constant, `PROMPT_VERSION` in `cinv/llm.py`, sets it (currently **v2**, the frozen submission
+baseline); the demo database, `parse_reports.py` and this README all follow it. Prompt v3 is parked on the
+`experimental/v3` branch (see [Known limitations and next steps](#known-limitations-and-next-steps)).
+
+**Run the tests** (35 tests, ~45 s, no network):
+
+```powershell
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\python.exe -m pytest
+```
+
+**Rebuild everything from scratch:**
+
+```powershell
+.venv\Scripts\python.exe generate_data.py            # synthetic dataset + gold set (deterministic, seed 42)
+.venv\Scripts\python.exe init_db.py --db data\cinv_demo.db
+.venv\Scripts\python.exe parse_reports.py --text-parser llm --offline --strict --db data\cinv_demo.db
+.venv\Scripts\python.exe run_queries.py              # the 4 queries in queries.sql
+.venv\Scripts\python.exe evaluate.py                 # rule vs LLM v1 vs v2 on the gold set (from the cache)
+```
+
+`--offline` never calls the API (even if a key is in `.env`); `--strict` aborts and leaves the database untouched if
+any report would fall back to the keyword rules because its response is not cached. `--text-parser rule` builds the
+keyword-rule version instead. To call the API for new reports, copy `.env.example` to `.env` and set `GROQ_API_KEY`
+(optional: `GROQ_MODEL`, `GROQ_REASONING_EFFORT`, default `medium`; `GROQ_PROMPT_VERSION` overrides `PROMPT_VERSION`).
+
+LLM responses are cached in `data/llm_cache.json` (only schema-valid completions are ever cached), so `evaluate.py`
+and the rebuild above reproduce the published results **without an API key**.
 
 ---
 
@@ -58,17 +85,20 @@ LLM responses are cached in `data/llm_cache.json` (only schema-valid completions
 |---|---|
 | `schema.sql` | Tables, triggers and the views the queries and dashboard read |
 | `generate_data.py` | 5 synthetic patients × 6 weeks, 184 reports, 15 hand-written tricky cases, gold set |
-| `init_db.py` | Builds `data/cinv.db` and loads reference data and raw reports |
+| `init_db.py` | Builds a database (default `data/cinv.db`) and loads reference data and raw reports |
 | `cinv/models.py` | Pydantic models: the single output contract for every parser |
 | `cinv/questionnaire.py` | Deterministic questionnaire parser |
 | `cinv/rules.py` | Keyword/regex baseline for free text (also the fallback) |
-| `cinv/llm.py` | Groq extractor, prompts v1/v2, validation, cache |
+| `cinv/llm.py` | Groq extractor, `PROMPT_VERSION`, prompts v1/v2, validation, cache |
 | `cinv/common.py` | Medication dictionary mapping, evidence check, deterministic post-processing |
 | `cinv/pipeline.py` | Flags, corrections, cross-report checks, writing to SQLite |
 | `parse_reports.py` | Parse every report into the database |
 | `evaluate.py` | Field-level evaluation against `data/gold_set.json` |
 | `queries.sql`, `run_queries.py` | Four useful queries |
-| `app.py`, `dashboard/` | Streamlit dashboard (5 pages) |
+| `app.py`, `dashboard/` | Streamlit dashboard (5 pages); reads `data/cinv_demo.db` |
+| `data/cinv_demo.db` | Committed, pre-built synthetic database (LLM prompt v2) for the dashboard |
+| `run_demo.ps1`, `run_demo.sh` | One-command demo: venv + dependencies + dashboard, no API key |
+| `tests/` | pytest suite behind the README's verification claims |
 | `eval/` | Evaluation results (`results_v1.md` snapshot, `results_v2.md`) and predictions |
 
 ---
@@ -188,9 +218,10 @@ Gold set: **30 reports** (23 free text, 7 questionnaires) — all 18 hand-writte
 sample of 12 routine ones; the 18 tricky labels were human-reviewed (see [Where AI was used](#where-ai-was-used)).
 Run `evaluate.py`; full tables and every error are in `eval/results_v2.md` (`eval/results_v1.md` is the v1
 snapshot). Medication intake rows are scored on drug, status, date **and** whether the drug was stated by the
-patient or inferred from orders. Since prompt v3 the gold set also scores 4 patient-stated clock times; because
-of that, re-scoring v1/v2 against the current gold set gives one fewer fully-correct tricky report (R0003) than
-the snapshot tables below, which were computed before the clock labels existed.
+patient or inferred from orders. The gold set also contains 4 patient-stated clock-time labels (added for the parked v3 work); because of that,
+re-scoring v1/v2 against the current gold set gives one fewer fully-correct tricky report (R0003) than the
+snapshot tables below, which were computed before the clock labels existed (`eval/results_v3.md` has the current
+scoring of all columns).
 
 **Free-text reports (n = 23)**
 
@@ -235,7 +266,7 @@ yesterday — genuinely ambiguous).
 
 ## Dashboard
 
-`streamlit run app.py`. Every page states **synthetic data** and **which parser produced the data shown**
+`streamlit run app.py` (or `run_demo.ps1` / `run_demo.sh`). Every page states **synthetic data** and **which parser produced the data shown**
 (read from `extraction_runs`). Pages 1–2 are designed to be read in about 30 seconds.
 
 1. **Overview** — pre-visit snapshot (query 3), patients with open red flags first, then open review items,
@@ -291,13 +322,24 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
 - **Schema:** all 30 gold labels loaded into a copy of the DB as if they were parser output; every CHECK
   constraint accepted them; immutability triggers fire; the daily view returns the intended values for the
   conflict, correction, duplicate and vague-count cases.
-- **Parsers:** gold-set evaluation (above). LLM validation logic tested with a mocked Groq client: schema-failure
-  retry, fabricated evidence dropped, exaggerated count flagged, API failure → rule fallback + flag, cache hit
-  makes no call.
+- **Parsers:** gold-set evaluation (above), plus the automated tests below.
 - **Reproducibility:** `evaluate.py` with no API key reproduces `eval/results_v2.md` exactly from the cache; the
   v1 column matches the saved v1 snapshot line for line.
-- **Dashboard:** every page run headlessly (Streamlit AppTest) for every patient and for every flagged report;
-  charts exported and visually inspected (fixed clipped ticks, overlapping labels, missing phase shading).
+- **Dashboard:** every page run headlessly (Streamlit AppTest) for every patient; charts exported and visually
+  inspected (fixed clipped ticks, overlapping labels, missing phase shading).
+- **Automated tests (`pytest`, 35 passing):** each claim above is a test in `tests/` that builds a throw-away
+  database, uses a mocked Groq client and needs no network:
+
+| Claim | Test |
+|---|---|
+| Raw report updates / deletes raise SQLite abort errors | `test_raw_reports_are_immutable` |
+| Fabricated `evidence_span` is dropped and flagged `low_confidence` | `test_fabricated_evidence_is_dropped_and_flagged` |
+| "Like a hundred times" stores 1/NULL + `implausible_value` | `test_exaggerated_count_is_stored_as_1_null_and_flagged` |
+| Conflicting counts in the same part of day take the max and set `has_open_conflict` | `test_conflicting_counts_same_part_of_day_take_max_and_flag` |
+| A correction marks the prior event superseded and sets `supersedes_event_id` | `test_correction_supersedes_the_original_event` |
+| Transient API error → rule fallback + flag; auth / quota error aborts cleanly, nothing written or cached | `test_transient_api_error_falls_back_to_rules_and_flags`, `test_auth_or_quota_error_aborts_cleanly` |
+| Several active PRN orders leave `med_id` NULL and raise `unmapped_medication` | `test_several_active_prn_orders_leave_drug_null_and_flag` |
+| All 5 Streamlit pages render without exceptions for every patient | `tests/test_dashboard.py` |
 
 ---
 
@@ -309,38 +351,41 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
   report 163/184 on Groq's free-tier daily token limit (200k tokens/day for this model) with the database left
   unchanged; the second run made the remaining 12 calls (130 LLM reports in total, no rule fallbacks). The
   keyword-rule database is kept locally as `data/cinv_rule.db`.
-- **Prompt v3 — implemented, gold-set evaluation not finished.** The run stopped on Groq's daily token limit after
-  **7 of 24** v3 calls (cached); 17 remain, then the rule / v1 / v2 / v3 comparison is written to
-  `eval/results_v3.md`. Only after that: re-run the full dataset with v3 (the dashboard still shows v2 data).
-  v3 makes three changes (`cinv/llm.py`, `_V3_EDITS`):
+- **Prompt v3 — next step, parked on the `experimental/v3` branch.** v2 is frozen as the submission baseline; the v3
+  prompt and its supporting code are not in `main`. Its gold-set evaluation is complete and kept here
+  (`eval/results_v3.md`, `eval/predictions_llm_v3.json`), but v3 has **not** been run on the full dataset.
+  v3 makes three changes:
   1. **Contiguous evidence (R0043).** On the full v2 run, 20 correct rows were dropped: every routine report
      "Feeling pretty good today, no nausea or vomiting." got evidence `"no vomiting"`, which is not contiguous, so
      "vomiting: absent" was rejected and those days show as *no report* instead of *reported none* (123 vs 143
      absent-vomiting rows in the rule version). v3 asks for the whole contiguous phrase and lets one span support
      several rows; **the verbatim check itself is unchanged**. *Considered alternative:* evidence assembled from
-     fragments — rescues merged negations but weakens the anti-fabrication guarantee (fragments from different
-     sentences can assemble a meaning the patient never stated). If ever adopted: same sentence only, original
-     order, ≤ 2 fragments, lower confidence, distinct highlight.
-  2. **Clock times (human review of R0003 / R0067).** `clock_time` + `clock_time_approximate` are returned only when
-     the patient states a time or one follows arithmetically from it (8:00 + "20 minutes later" → ~08:20); never
-     from submission time. Stored in `symptom_events.occurred_start` and the new `medication_intake_events.taken_at`
-     with `time_precision` `exact` / `approximate`; an unknown part of day is filled from the patient's clock time.
-     The gold set now has 4 clock-time labels (R0003 ×3, R0067 ×1); v1 and v2 score 0/4 by construction.
-  3. **Day rule for sentences without a day word (R0034/R0037, R0175).** Inherit the previous sentence's day,
-     never its part of day.
+     fragments — rescues merged negations but weakens the anti-fabrication guarantee. If ever adopted: same sentence
+     only, original order, ≤ 2 fragments, lower confidence, distinct highlight.
+  2. **Clock times (human review of R0003 / R0067).** Returned only when the patient states a time or one follows
+     arithmetically from it; never from submission time. Stored in `occurred_start` / `medication_intake_events.taken_at`.
+  3. **Day rule for sentences without a day word (R0034/R0037, R0175).** Inherit the previous sentence's day, never
+     its part of day.
+
+  **Gold-set result (n = 23 free text; raw counts, no significance claim):** routine reports fully correct 7/7
+  (v2: 5/7); tricky 12/16 (v2: 12/16 once the clock labels are scored); clock time 3/4 (v2: 0/4); symptom recall
+  40/40. But v3 also introduced new errors: R0087 (presence `uncertain` and severity missing instead of mild
+  nausea), R0117 and R0133 (part of day filled from the wording "since this morning" / "after lunch" where the label
+  says unknown or all-day); episode count 15/16 and severity 17/18 (v2: 15/15, 18/18). Net: v3 fixes the R0043 /
+  R0175 routine regressions and adds clock times, at the price of new errors on tricky cases — it needs those fixed
+  and a blind held-out set before it replaces v2.
 - **Ask for the drug, not just a count (product fix).** Generate the questionnaire's PRN item from the patient's
   active orders — e.g. "How many doses of ondansetron (Zofran) did you take in the last 24 h?", one item per PRN
   order — so the drug is reported by the patient instead of inferred. The prototype currently infers and marks it.
 - **Held-out evaluation set** in varied wording, written without looking at the rules.
-- Move the ad-hoc mock-client and schema checks (including the multi-PRN-order branch) into a `tests/` suite.
 
 **Known limitations**
 
 - Same-part-of-day episodes from separate reports are merged by the max rule (possible under-count).
 - Under prompt v2, a follow-on sentence without its own date word in a next-morning report ("Yesterday was a good
   day … Appetite is okay.") is dated to the submission day; on the full run this created one false
-  `cross_report_conflict` (R0034 vs R0037), same ambiguity as gold case R0175. v3 adds an explicit rule; not yet
-  verified (evaluation pending).
+  `cross_report_conflict` (R0034 vs R0037), same ambiguity as gold case R0175. v3 adds an explicit rule (fixes
+  R0175 on the gold set) but has not been run on the full dataset.
 - Flags are de-duplicated per report (same type and description → one flag linked to all its rows); previously an
   unmapped medication mentioned in both an intake row and a symptom row raised two identical flags (R0067).
 - "Overnight" is assigned to the date the night started (convention); questionnaire answers cover the
@@ -350,15 +395,15 @@ R0003、R0067 的意见（病人给了具体时间，应该存下来）放到"�
 - Red flags are display-prominence rules for review, not clinical triage.
 - Questionnaire PRN doses are attributed to the single active PRN order by inference (marked as such); a patient
   could have taken something else (e.g. an over-the-counter medicine). The synthetic data has no day with several
-  active PRN orders, so the ambiguous branch is covered by an ad-hoc check, not by the gold set.
+  active PRN orders, so the ambiguous branch is covered by a pytest test, not by the gold set.
 - "Last visit" = last infusion day (visits coincide with infusions in the synthetic data).
 - Cache keys include model, prompt version, input, context and (for reasoning models) reasoning effort. Entries
   written before effort was added were all produced at `medium`, which therefore adds no suffix, so existing
   cache entries remain valid.
 
-**中文要点：** LLM v2 全量解析已完成（分两天跑完，第一次因每日 token 上限停在 163/184），看板现在显示 LLM v2 的数据；
-规则版本的数据库保留在本地 `data/cinv_rule.db`。全量数据上，R0043 同类问题丢掉了 20 行"没有呕吐"，这些天在看板上显示为"没报告"而不是"报告了 0 次"，
-所以做了 prompt v3：① 要求引用完整连续的短语，同一段 evidence 可以支撑多行，验证规则不变；② 病人给出具体或大概时间时存下来
-（服药表新增 `taken_at`），绝不根据提交时间推断；③ 句子没有日期词时沿用上一句的日期，但不沿用时段。
-v3 在 gold set 上的评测因每日 token 上限只跑了 7/24 次调用（已缓存），剩下 17 次等额度恢复后补跑，然后再用 v3 跑全量。
-flag 现在按报告去重。另外还需要一组留出集。
+**中文要点：** 提交版本冻结为 prompt v2（常量 `PROMPT_VERSION`，代码、README、演示数据库一致）；全量 184 条报告已用 LLM v2 解析，
+并且可以只靠缓存重建（零 API 调用、零规则回退），结果提交为 `data/cinv_demo.db`，看板默认读取它。
+`run_demo.ps1` / `run_demo.sh` 一条命令建环境、装依赖、启动看板，不需要 API key。需要 Python 3.11 及以上（在 3.13 上开发）。
+prompt v3 放在 `experimental/v3` 分支，作为"下一步"：gold set 评测已完成（常规报告 7/7、时间 3/4），
+但在疑难 case 上引入了新错误（R0087、R0117、R0133），且没有跑全量，所以不替换 v2。
+`pytest` 共 35 个测试，覆盖 README 的各项验证声明。另外还需要一组盲测留出集。

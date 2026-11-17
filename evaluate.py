@@ -26,7 +26,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from cinv.common import Context
-from cinv.llm import (CONTEXT_WINDOW_HOURS, LATEST_PROMPT_VERSION, PROMPTS, FatalLLMError, GroqExtractor,
+from cinv.llm import (CONTEXT_WINDOW_HOURS, PROMPT_VERSION, PROMPTS, FatalLLMError, GroqExtractor,
                       parse_free_text_llm)
 from cinv.models import COUNTED, INFERRED_PRN_TEXT, ParsedReport
 from cinv.pipeline import load_rows, run

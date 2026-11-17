@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .env
 data/*.db
+# pre-built, 100% synthetic demo database (rebuilt from the LLM cache, no API key): committed on purpose
+!data/cinv_demo.db
 
 # assessment brief is confidential (IP notice) - keep out of the repo
 Data_Intelligence_Engineering_Intern_Assessment_Brief.pdf

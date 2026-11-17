@@ -36,7 +36,9 @@ from .common import Context, evidence_in_text, submitted_date
 from .models import (IntakeEvent, IntakeStatus, MedRelation, ParsedReport, PartOfDay, Presence,
                      SymptomCode, SymptomEvent, WeightReading)
 
-LATEST_PROMPT_VERSION = "v3"
+# The one place the prompt version is chosen: code, README and the demo database all follow it.
+# v2 is frozen as the submission baseline. v3 lives on the experimental/v3 branch (see README, Next steps).
+PROMPT_VERSION = "v2"
 # Largest open-weight model on the account's Groq model list (checked 2026-11-16).
 # llama-3.3-70b-versatile is no longer served (404 model_not_found).
 DEFAULT_MODEL = "openai/gpt-oss-120b"
@@ -126,44 +128,7 @@ for _old, _new in _V2_EDITS:
     assert _old in SYSTEM_PROMPT_V2, _old
     SYSTEM_PROMPT_V2 = SYSTEM_PROMPT_V2.replace(_old, _new)
 
-# v3 changes vs v2 (motivated by the full v2 run and the human review of the gold set):
-#  1. Evidence: quote the whole contiguous phrase when supporting words are not adjacent
-#     ("no nausea or vomiting"); one span may support several rows. The verbatim check is
-#     unchanged (R0043: 20 correct "vomiting absent" rows were dropped on the full run).
-#  2. Clock times the patient states, or that follow arithmetically from a stated time, are
-#     returned as clock_time (+ approximate flag); never derived from submission time (R0003, R0067).
-#  3. Explicit day rule for sentences without a day word: inherit the previous sentence's day,
-#     never its part of day (R0034/R0037, R0175).
-_V3_EDITS = [
-    ('"day_offset":int, "part_of_day":...,',
-     '"day_offset":int, "part_of_day":..., "clock_time":"HH:MM"|null, "clock_time_approximate":bool,'),
-    ('  "part_of_day":..., "evidence_span":str, "confidence":float}],',
-     '  "part_of_day":..., "clock_time":"HH:MM"|null, "clock_time_approximate":bool, "evidence_span":str,\n'
-     '  "confidence":float}],'),
-    ("""  the previous day -> -1, part_of_day "overnight".""",
-     """  the previous day -> -1, part_of_day "overnight".
-  A sentence with no day word of its own ("today", "this morning", "tonight" count as day words for
-  day 0) takes the day of the previous sentence in the same report: "Yesterday was a good day, no
-  nausea. Appetite is okay." -> appetite day_offset -1. If no earlier sentence has a day word, use 0.
-  Inherit ONLY the day, never part_of_day."""),
-    ("""- med_mention: copy the patient's exact words""",
-     """- clock_time: only when the patient states a clock time ("at 8", "around 2pm") or one follows by simple
-  arithmetic from a stated time ("took it at 8 ... threw it up 20 minutes later" -> "08:20"). Use 24 h
-  "HH:MM". clock_time_approximate: true for "around/about/~" and for computed times, false for a plainly
-  stated time. Never derive a clock time from the submission time or from words like "morning". Else null.
-- med_mention: copy the patient's exact words"""),
-    ("""  Do not paraphrase. Rows whose evidence is not found verbatim are discarded.""",
-     """  Do not paraphrase. Rows whose evidence is not found verbatim are discarded.
-  If the words supporting a row are not adjacent (e.g. vomiting absent in "no nausea or vomiting"), quote
-  the whole contiguous phrase that contains them ("no nausea or vomiting"); never join fragments.
-  The same evidence_span may support several rows."""),
-]
-SYSTEM_PROMPT_V3 = SYSTEM_PROMPT_V2
-for _old, _new in _V3_EDITS:
-    assert SYSTEM_PROMPT_V3.count(_old) == 1, _old
-    SYSTEM_PROMPT_V3 = SYSTEM_PROMPT_V3.replace(_old, _new)
-
-PROMPTS = {"v1": SYSTEM_PROMPT_V1, "v2": SYSTEM_PROMPT_V2, "v3": SYSTEM_PROMPT_V3}
+PROMPTS = {"v1": SYSTEM_PROMPT_V1, "v2": SYSTEM_PROMPT_V2}
 CONTEXT_WINDOW_HOURS = 72
 
 # --- LLM output contract (validated with Pydantic) -------------------------
@@ -187,7 +152,7 @@ class LLMSymptom(BaseModel):
     episode_count_max: int | None = Field(None, ge=0)
     day_offset: int = Field(0, ge=-7, le=0)
     part_of_day: PartOfDay = "unknown"
-    clock_time: str | None = None              # v3: "HH:MM", only when stated / computed from a stated time
+    clock_time: str | None = None              # unused by prompt v2 (kept for the v3 branch)
     clock_time_approximate: bool = False
     timing_raw: str | None = None
     med_mention: str | None = None
@@ -234,7 +199,7 @@ class GroqExtractor:
         load_dotenv(ROOT / ".env")
         self.model = model or os.getenv("GROQ_MODEL") or DEFAULT_MODEL
         self.reasoning_effort = os.getenv("GROQ_REASONING_EFFORT") or DEFAULT_REASONING_EFFORT
-        self.prompt_version = prompt_version or os.getenv("GROQ_PROMPT_VERSION") or LATEST_PROMPT_VERSION
+        self.prompt_version = prompt_version or os.getenv("GROQ_PROMPT_VERSION") or PROMPT_VERSION
         if self.prompt_version not in PROMPTS:
             raise ValueError(f"unknown prompt version {self.prompt_version!r}")
         self.cache_path = cache_path

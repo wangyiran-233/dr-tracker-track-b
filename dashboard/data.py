@@ -6,6 +6,7 @@ modification time, so re-parsing or resolving a flag invalidates the cache.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
@@ -17,7 +18,9 @@ from cinv.models import INFERRED_PRN_TEXT
 from run_queries import load_queries
 
 ROOT = Path(__file__).resolve().parent.parent
-DB = ROOT / "data" / "cinv.db"
+# Default: the committed, pre-built demo database (LLM prompt v2, rebuilt from the cache).
+# Override with CINV_DB to point the dashboard at another database, e.g. data/cinv.db.
+DB = Path(os.environ.get("CINV_DB") or ROOT / "data" / "cinv_demo.db")
 EVAL_DIR = ROOT / "eval"
 QUERIES = load_queries(ROOT / "queries.sql")
 
@@ -40,7 +43,7 @@ def query(sql: str, params: tuple | list = ()) -> pd.DataFrame:
 def db_ready() -> str | None:
     """Return an error message if the DB is missing or not parsed yet."""
     if not DB.exists():
-        return "Database not found. Run `init_db.py` and `parse_reports.py --text-parser rule` first."
+        return "Database not found. Run `init_db.py` and `parse_reports.py --text-parser llm --offline` first, or check CINV_DB."
     n = query("SELECT COUNT(*) AS n FROM symptom_events")["n"].iloc[0]
     if n == 0:
         return "No parsed events yet. Run `parse_reports.py --text-parser rule` (or `llm`)."

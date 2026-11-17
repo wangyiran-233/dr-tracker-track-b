@@ -29,6 +29,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--text-parser", choices=["llm", "rule"], required=True)
     ap.add_argument("--db", type=Path, default=DB)
+    ap.add_argument("--offline", action="store_true",
+                    help="never call the API, even if GROQ_API_KEY is set (cached responses only)")
+    ap.add_argument("--strict", action="store_true",
+                    help="with --text-parser llm: abort, leaving the database unchanged, if any report "
+                         "would fall back to the keyword rules")
     args = ap.parse_args()
 
     con = sqlite3.connect(args.db)
@@ -38,11 +43,12 @@ def main() -> None:
 
     model, prompt_version = None, None
     if args.text_parser == "llm":
-        ex = GroqExtractor()
+        ex = GroqExtractor(offline=args.offline)
         if not ex.available:
             n_ft = sum(r["source"] == "free_text" for r in rows)
-            print(f"GROQ_API_KEY not set: only cached responses can be used; uncached free-text "
-                  f"reports ({n_ft} total) will fall back to the keyword rules and be flagged.", file=sys.stderr)
+            why = "--offline" if args.offline else "GROQ_API_KEY not set"
+            print(f"{why}: only cached responses are used; any of the {n_ft} free-text reports without a "
+                  f"cached response falls back to the keyword rules and is flagged.", file=sys.stderr)
         text_parser, model, prompt_version = parse_free_text_llm(ex), ex.model, ex.prompt_version
     else:
         text_parser = parse_free_text_rule
@@ -57,10 +63,19 @@ def main() -> None:
     except FatalLLMError as e:
         con.close()
         raise SystemExit(f"Stopped, database left unchanged: {e}")
+    fallbacks = sorted(rid for rid, rep in parsed.items()
+                       if any(f.description.startswith("LLM extraction failed") for f in rep.flags))
+    if args.text_parser == "llm" and fallbacks:
+        print(f"{len(fallbacks)} report(s) fell back to the keyword rules (no usable LLM response): "
+              + ", ".join(fallbacks), file=sys.stderr)
+        if args.strict:
+            con.close()
+            raise SystemExit("--strict: database left unchanged.")
     write_results(con, parsed, cross, args.text_parser, model, prompt_version)
 
     if args.text_parser == "llm":
-        print(f"Groq API calls this run: {ex.calls} (others served from cache)")
+        print(f"Groq API calls this run: {ex.calls} (others served from cache); "
+              f"prompt {prompt_version}; rule fallbacks: {len(fallbacks)}")
     for table in ("symptom_events", "medication_intake_events"):
         print(f"{table:26s} {con.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]}")
     n_w = con.execute("SELECT COUNT(*) FROM weight_measurements WHERE source = 'patient_reported'").fetchone()[0]
