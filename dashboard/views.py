@@ -1,6 +1,6 @@
 """Dashboard pages. Two clinical views (Overview, Patient Deep-Dive) for a provider with
-30 seconds; one developer page (Parser & Eval Inspector: patient words vs parsed data,
-review queue, method, evaluation) behind the sidebar toggle "Show Parser & Eval Inspector"."""
+30 seconds; one developer page (Parser & Eval Inspector: edge cases + benchmark, browse all
+reports, review queue, evaluation, method) behind the sidebar toggle "Show Parser & Eval Inspector"."""
 
 from __future__ import annotations
 
@@ -10,6 +10,8 @@ import re
 
 import pandas as pd
 import streamlit as st
+
+from cinv.models import MAX_PLAUSIBLE_EPISODES
 
 from . import data
 from .charts import cycle_figure, trend_figure
@@ -486,21 +488,55 @@ def regimen_change_panel(pid: str) -> None:
                        "the difference**; cycles also differ in dose, hydration, reporting days and chance.")
 
 
+def _flag_quote(f) -> str:
+    """Verbatim evidence of the rows a flag points at: patient quotes first, then questionnaire fields."""
+    ev = data.flag_evidence(int(f["flag_id"]))
+    quotes = list(dict.fromkeys(f"“{e['evidence_span']}”" for e in ev
+                                if e["extraction_method"] != "questionnaire" and isinstance(e["evidence_span"], str)))
+    fields = list(dict.fromkeys(e["evidence_span"] for e in ev
+                                if e["extraction_method"] == "questionnaire" and isinstance(e["evidence_span"], str)))
+    if not quotes and not fields:          # no linked rows (e.g. rows rejected by validation): patient's own text
+        words = f["patient_words"] if isinstance(f["patient_words"], str) and f["patient_words"] else None
+        return f"“{_clip(words or _trigger_quote(f['description'], None), 220)}”"
+    return "  ·  ".join(quotes) + (f"  (questionnaire: {', '.join(fields)})" if fields else "")
+
+
 def review_drawer(pid: str) -> None:
+    """Nurse Review Flags: one amber card per open flag, with the evidence and a reconcile button."""
     q = data.review_queue()
     q = q[q["patient_id"] == pid]
-    urgent = (q["severity"] == "urgent").any()
-    with st.expander(f"Open review flags ({len(q)}) — nurse reconciliation", expanded=bool(urgent),
-                     icon=":material/fact_check:"):
-        if q.empty:
+    n = len(q)
+    with st.container(key="card_flags"):
+        dot = AMBER if n else TEAL
+        st.html(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap'>"
+            f"<div style='display:flex;align-items:center;gap:10px'>"
+            f"<span style='width:10px;height:10px;border-radius:50%;background:{dot}'></span>"
+            f"<span style='font-size:1.15rem;font-weight:700'>Nurse Review Flags ({n} Open)</span>"
+            + (_tag(f"{n} Open", AMBER, "#FEF3C7", AMBER_LINE) if n else "")
+            + "</div><div class='dt-small'>Clinical reconciliation log · Structured extraction vs. patient narrative"
+              "</div></div>")
+        if not n:
             st.caption("No open review flags for this patient.")
         for _, f in q.iterrows():
-            with st.container(border=True):
-                words = f["patient_words"] if isinstance(f["patient_words"], str) else "(questionnaire, no comment)"
-                st.markdown(f"{SEVERITY_ICON.get(f['severity'], '')} **{FLAG_LABELS.get(f['flag_type'], f['flag_type'])}**"
-                            f" · report {f['report_id']} · {str(f['submitted_at']).replace('T', ' ')[:16]}  \n"
-                            f"{f['description']}  \n*Patient's words:* “{_clip(words, 220)}”")
-                _flag_actions(int(f["flag_id"]), "dd")
+            fid = int(f["flag_id"])
+            with st.container(key=f"flagcard-{fid}"):
+                body, act = st.columns([5, 1], vertical_alignment="center")
+                urgent = _tag("RED FLAG", RED, RED_TINT, RED_LINE) if f["flag_type"] == "red_flag" else ""
+                when = str(f["submitted_at"]).replace("T", " ")[:16]
+                linked = data.flag_evidence(fid)
+                reason = _reason(f["description"]) if linked else f["description"]   # keep rejected text visible
+                body.html(
+                    f"<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap'>"
+                    f"{_tag('ACTION NEEDED', AMBER, '#FEF3C7', AMBER_LINE)}{urgent}"
+                    f"<b style='font-size:1rem'>{esc(FLAG_LABELS.get(f['flag_type'], f['flag_type']))}</b>"
+                    f"<span class='dt-small'>report {esc(f['report_id'])} · {esc(when)}</span></div>"
+                    f"<div style='font-size:.9rem;color:#334155;margin:.5em 0'>{esc(reason)}</div>"
+                    f"<span class='dt-quote' style='display:inline-block'>{esc(_flag_quote(f))}</span>")
+                with act:
+                    if st.button("✓ Mark Reconciled", key=f"recon_{fid}", type="primary", width="stretch"):
+                        data.set_flag_status(fid, "resolved", "Marked reconciled in Patient Deep-Dive")
+                        st.rerun()
 
 
 LEGEND = ("How to read: teal bars = worst nausea that day (darker = worse) · red line = vomiting episodes "
@@ -673,7 +709,7 @@ def _words_tab() -> None:
 def _queue_tab() -> None:
     queue = data.review_queue()
     st.caption("All open review items, urgent first. Select a row to load its report in the "
-               "“Words vs parsed data” tab.")
+               "“Browse all reports” tab.")
     qv = pd.DataFrame({
         "": queue["severity"].map(SEVERITY_ICON),
         "type": queue["flag_type"].map(FLAG_LABELS),
@@ -850,6 +886,251 @@ def _eval_tab() -> None:
                 st.markdown("### " + rest)
 
 
+# ---------------------------------------------------------------------------
+# 5. Inspector: edge cases (real hard reports from the demo data) + benchmark
+# ---------------------------------------------------------------------------
+
+# (button label, report ids). Reports are real rows of the synthetic dataset; everything shown for them
+# (text, parsed rows, flags, rationale, check badge) is read from the database at render time.
+EDGE_CASES = [
+    ("Questionnaire vs comment conflict · R0035", ["R0035"]),
+    ("Next-day correction · R0007 → R0009", ["R0007", "R0009"]),
+    ("Exaggerated count · R0089", ["R0089"]),
+    ("Can't keep water down · R0117", ["R0117"]),
+]
+EVENT_KEYS = ["event_id", "symptom_code", "presence", "severity_level", "severity_nrs", "episode_count_min",
+              "episode_count_max", "occurred_date", "part_of_day", "evidence_span", "extraction_method",
+              "confidence", "status", "supersedes_event_id"]
+
+
+def _py(v):
+    """numpy / NaN -> plain JSON values."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    if hasattr(v, "item"):
+        v = v.item()
+    if isinstance(v, float) and pd.isna(v):
+        return None
+    if isinstance(v, float) and v.is_integer() and abs(v) < 1e6:
+        return int(v)
+    return v
+
+
+def edge_record(rid: str) -> dict:
+    """The stored parse of one report as it sits in SQLite: symptom rows, medication rows, flags."""
+    r = data.reports().set_index("report_id").loc[rid]
+    ev = data.query(f"SELECT {', '.join(EVENT_KEYS)} FROM symptom_events WHERE report_id = ? ORDER BY event_id",
+                    [rid])
+    rec = {"report_id": rid, "patient_id": r["patient_id"], "source": r["source"],
+           "parse_status": r["parse_status"],
+           "symptom_events": [{k: _py(e[k]) for k in EVENT_KEYS} for _, e in ev.iterrows()]}
+    it = data.report_intakes(rid)
+    if not it.empty:
+        rec["medication_intake"] = [{k: _py(i[k]) for k in ("medication", "medication_source", "intake_status",
+                                                            "dose_count", "taken_date", "evidence_span")}
+                                    for _, i in it.iterrows()]
+    fl = data.report_flags(rid)
+    rec["review_flags"] = [{"flag_type": f["flag_type"], "severity": f["severity"], "status": f["status"],
+                            "event_ids": [int(e["event_id"]) for e in data.flag_evidence(int(f["flag_id"]))]}
+                           for _, f in fl.iterrows()]
+    return rec
+
+
+def guardrail_rationale(rids: list[str]) -> list[str]:
+    """One sentence per stored flag / correction, describing the code rule that produced it."""
+    out = []
+    for rid in rids:
+        for _, f in data.report_flags(rid).iterrows():
+            t, ev = f["flag_type"], data.flag_evidence(int(f["flag_id"]))
+            if t == "implausible_value":
+                m = re.search(r"count (\d+)-(\d+)", f["description"])
+                lit = f"the literal count ({m.group(1)})" if m else "the literal count"
+                out.append(f"The parser copied {lit} as written; the code caps any count above "
+                           f"{MAX_PLAUSIBLE_EPISODES} episodes, stores it as “at least 1” (min 1, max NULL) and "
+                           f"raises an implausible_value flag instead of charting the number.")
+            elif t == "red_flag":
+                out.append("A present unable_to_keep_fluids row from free text always raises an urgent red_flag — "
+                           "a fixed code rule, not the model's judgement — so it is listed first in Needs Attention while open.")
+            elif t == "severity_mismatch":
+                out.append("The patient rated nausea mild (≤ 1/4), but the same day has "
+                           + ", ".join(sorted({e["symptom_code"] for e in ev if e["symptom_code"] != "nausea"}))
+                           + "; the code raises severity_mismatch (mild nausea + fluids not kept down or ≥ 4 vomits) rather than "
+                             "trusting the self-rating.")
+            elif t == "intra_report_conflict":
+                q = [e["evidence_span"] for e in ev if e["extraction_method"] == "questionnaire"]
+                txt = [e["evidence_span"] for e in ev if e["extraction_method"] != "questionnaire"]
+                what = (f"The form answer ({', '.join(q)}) and the comment (“{'; '.join(txt)}”) disagree"
+                        if q and txt else "Two rows of this report disagree")
+                out.append(f"{what}. Both rows are kept, an intra_report_conflict flag is raised, and the daily "
+                           f"chart takes the larger count and marks the day.")
+            else:
+                out.append(f"{FLAG_LABELS.get(t, t)}: {_reason(f['description'])}.")
+        for _, s in data.superseded_by(rid).iterrows():
+            out.append(f"{s['corrected_in']} was parsed as a correction, so the earlier {s['symptom_code']} row "
+                       f"(event {s['event_id']} in {rid}, same day) was set to superseded and the new row links to "
+                       f"it via supersedes_event_id; the original stays in the database, the chart uses the "
+                       f"correction.")
+    return out
+
+
+def _json_html(obj) -> str:
+    """Pretty JSON with light syntax colouring for the dark code panel."""
+    src = html.escape(json.dumps(obj, indent=2, ensure_ascii=False), quote=False)
+
+    def color(m):
+        tok = m.group(0)
+        if tok.startswith('"'):
+            return f"<span class='{'k' if tok.rstrip().endswith(':') else 's'}'>{tok}</span>"
+        return f"<span class='n'>{tok}</span>"
+
+    return re.sub(r'"(?:[^"\\]|\\.)*"\s*:|"(?:[^"\\]|\\.)*"|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?\b',
+                  color, src)
+
+
+def _submission_html(rid: str) -> str:
+    r = data.reports().set_index("report_id").loc[rid]
+    events = data.report_events(rid)
+    spans = [(e["evidence_span"], e["symptom_code"], f"{e['symptom_code']} · {e['presence']}")
+             for _, e in events.iterrows() if e["extraction_method"] != "questionnaire"]
+    spans += [(i["evidence_span"], "medication", f"medication: {i['medication']}")
+              for _, i in data.report_intakes(rid).iterrows()]
+    flagged = {e["evidence_span"] for _, f in data.report_flags(rid).iterrows()
+               for e in data.flag_evidence(int(f["flag_id"]))}
+    if r["source"] == "free_text":
+        return f"Free text: “{highlight(r['raw_text'], spans)}”"
+    q = json.loads(r["questionnaire_json"])
+    items = []
+    for k, v in q.items():
+        if k == "comments" or v is None:
+            continue
+        cell = f"[{html.escape(k)}: {html.escape(str(v))}]"
+        if f"{k}={v}" in flagged:
+            cell = (f"<mark title='flagged questionnaire answer' style='background:{HL['weight']};color:inherit;"
+                    f"border-radius:4px;padding:1px 3px'>{cell}</mark>")
+        items.append(cell)
+    out = "Structured form: " + " ".join(items)
+    if q.get("comments"):
+        out += f"<br>Free-text comment: “{highlight(q['comments'], spans)}”"
+    return out
+
+
+def _edge_case(rids: list[str]) -> None:
+    reps = data.reports().set_index("report_id")
+    first = reps.loc[rids[0]]
+    cp = data.cycle_position(first["patient_id"], pd.Timestamp(first["submitted_at"]).normalize())
+    chip = f"{first['patient_id']}" + (f" · {cp['short']}" if cp else "") + f" · {first['source'].replace('_', ' ')}"
+    checks = [data.verify_report(r) for r in rids]
+    ok = all(c["ok"] for c in checks)
+    left, right = st.columns(2, gap="medium")
+    with left:
+        with st.container(key="card_raw"):
+            blocks = "".join(
+                f"<div class='dt-small' style='margin:{'0' if i == 0 else '.8rem'} 0 .3rem'>"
+                f"{esc(r)} · submitted {esc(reps.loc[r, 'submitted_at'].replace('T', ' ')[:16])}"
+                f"{' (original)' if len(rids) > 1 and i == 0 else (' (next report)' if i else '')}</div>"
+                f"<div class='dt-quote' style='font-size:.86rem;line-height:1.75'>{_submission_html(r)}</div>"
+                for i, r in enumerate(rids))
+            st.html(f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px'>"
+                    f"<span class='dt-th' style='font-size:.8rem'>1. Raw patient submission</span>"
+                    f"<span class='dt-chip'>{esc(chip)}</span></div><hr class='dt-rule'>{blocks}")
+            reasons = guardrail_rationale(rids)
+            if reasons:
+                st.html(f"<div class='dt-rationale'><b>Guardrail rationale:</b> {esc(' '.join(reasons))}</div>")
+    with right:
+        recs = [edge_record(r) for r in rids]
+        badge = ("<span class='dt-okbadge'>Schema valid · Evidence verified</span>" if ok else
+                 "<span class='dt-okbadge bad'>Check failed: "
+                 + esc("; ".join(p for c in checks for p in c["problems"])[:120]) + "</span>")
+        st.html(f"<div class='dt-code'><div class='hd'><span>2. Validated structured output</span>{badge}</div>"
+                f"<pre>{_json_html(recs[0] if len(recs) == 1 else recs)}</pre></div>")
+
+
+def _cell(text: str) -> tuple[int, int, str] | None:
+    m = re.search(r"(\d+)%\s*\((\d+)/(\d+)\)", text)
+    return (int(m.group(2)), int(m.group(3)), m.group(1)) if m else None
+
+
+def _row(section: str, metric: str) -> tuple | None:
+    """(rule, LLM v2) cells of one results.md table row: first and last value column."""
+    for line in section.splitlines():
+        if line.startswith(f"| {metric}"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            rule, v2 = _cell(cells[1]), _cell(cells[-1])
+            if rule and v2:
+                return rule, v2
+    return None
+
+
+# (results.md section prefix, metric row prefix, label, dataset, impact template, primary KPI?)
+BENCH = [
+    ("Free-text", "Report fully correct - hand-annotated tricky", "Report fully correct",
+     "Gold set · hand-annotated tricky free text",
+     "Every field right on the hardest hand-labelled reports (corrections, hedges, exaggerated counts)", False),
+    ("Blind messy set", "Symptom rows - recall", "Symptom rows found (recall)",
+     "Blind messy set · 88 reports, 22 categories",
+     "A missed row is a symptom the provider never sees: v2 misses {vm} of {d}, rules miss {rm}", False),
+    ("Blind messy set", "Report fully correct", "Report fully correct (symptom rows)",
+     "Blind messy set · 88 reports, 22 categories",
+     "Reports whose symptom rows are all right without any human review", False),
+    ("Blind messy set", "Red flags - recall", "Red flags caught (recall)",
+     "Blind messy set · reports labelled red_flag",
+     "Main open gap: v2 still misses {vm} of {d} red flags written in messy wording", False),
+    ("Blind messy set", "Wrong & unflagged", "Wrong & unflagged (silent error)",
+     "Blind messy set · 88 reports, 22 categories",
+     "Errors that reach the chart with no flag: {rn} → {vn} of {d}. Lower is better; still about 1 in 4, which "
+     "is why every chart point keeps its evidence quote", True),
+]
+
+
+def benchmark_table() -> None:
+    secs = _md_sections(data.EVAL_DIR / "results.md")
+    rows = []
+    for sec_key, metric, label, dataset, impact, primary in BENCH:
+        sec = next((v for k, v in secs.items() if k.startswith(sec_key)), "")
+        found = _row(sec, metric)
+        if not found:
+            continue
+        (rn, d, rp), (vn, _, vp) = found
+        rule = f"{rn} / {d} <span class='pct'>({rp}%)</span>"
+        v2 = f"{vn} / {d} <span class='pct'>({vp}%)</span>"
+        if primary:
+            rule, v2 = f"<span class='bad'>{rule}</span>", f"<span class='warn'>{v2}</span>"
+        kpi = _tag("PRIMARY SAFETY KPI", TEAL, TEAL_TINT, TEAL_LINE) if primary else ""
+        rows.append(f"<tr class='{'kpi' if primary else ''}'><td><b>{esc(label)}</b> {kpi}</td>"
+                    f"<td class='ds'>{esc(dataset)}</td><td class='num'>{rule}</td><td class='num v2'>{v2}</td>"
+                    f"<td>{esc(impact.format(rn=rn, vn=vn, d=d, rm=d - rn, vm=d - vn))}</td></tr>")
+    with st.container(key="card_bench"):
+        if not rows:
+            st.caption("eval/results.md not found — run evaluate.py --offline.")
+            return
+        head = blind_headline()
+        st.html(
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:8px 16px;"
+            f"flex-wrap:wrap'><div><div style='font-size:1.15rem;font-weight:700'>Extraction &amp; Safety "
+            f"Guardrail Benchmark</div><div class='dt-small' style='font-size:.86rem'>Keyword-rule baseline vs LLM "
+            f"prompt v2 (Pydantic schema + verbatim-evidence check) · gold set (30 reports) and blind messy set "
+            f"(88 reports, 22 failure categories) · raw counts with percentages; small samples, no significance "
+            f"claimed</div></div>"
+            + (f"<span class='dt-chip'>{head} wrong &amp; unflagged · LLM v2</span>" if head else "") + "</div>"
+            f"<div style='overflow-x:auto'><table class='dt-bench'><thead><tr><th>Metric</th><th>Dataset</th>"
+            f"<th>Rule baseline</th><th>LLM v2</th><th>Clinical safety impact</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table></div>")
+        st.caption("Full per-metric results, the per-category breakdown and every error are in the Evaluation tab.")
+
+
+def _edge_tab() -> None:
+    have = set(data.reports()["report_id"])
+    labels = [lab for lab, rids in EDGE_CASES if all(r in have for r in rids)]
+    if labels:
+        st.caption("Real hard reports from the demo data. Left: what the patient submitted (highlighted = evidence "
+                   "the parser used). Right: the rows stored in SQLite for it, re-checked against the schema and "
+                   "the submission when this page renders.")
+        pick = st.pills("Edge case", labels, default=labels[0], key="edge_case",
+                        label_visibility="collapsed") or labels[0]
+        _edge_case(dict(EDGE_CASES)[pick])
+    benchmark_table()
+
+
 def page_inspector() -> None:
     msg = data.db_ready()
     if msg:
@@ -878,13 +1159,15 @@ def page_inspector() -> None:
                         f"style='font-size:.78rem'>{head} wrong &amp; unflagged</span><div class='dt-small' "
                         f"style='margin-top:3px'>LLM prompt v2 · blind messy set</div></div>")
 
-    t_words, t_queue, t_method, t_eval = st.tabs(["Words vs parsed data", "Review queue", "Method",
-                                                  "Evaluation"])
+    t_edge, t_words, t_queue, t_eval, t_method = st.tabs(["Edge cases", "Browse all reports", "Review queue",
+                                                          "Evaluation", "Method"])
+    with t_edge:
+        _edge_tab()
     with t_words:
         _words_tab()
     with t_queue:
         _queue_tab()
-    with t_method:
-        _method_tab()
     with t_eval:
         _eval_tab()
+    with t_method:
+        _method_tab()

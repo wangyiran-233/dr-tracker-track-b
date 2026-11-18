@@ -1,7 +1,7 @@
 """UI smoke tests against the committed demo database (data/cinv_demo.db): both clinical
 views for every patient, the Timeline / Cycle-over-Cycle toggle, patient pills, the
-Needs Attention cards, clickable cohort rows, evidence tooltips, and the developer-only
-Parser & Eval Inspector behind the sidebar toggle."""
+Needs Attention cards, clickable cohort rows, evidence tooltips, Nurse Review Flags, and the
+developer-only Parser & Eval Inspector (edge cases, benchmark) behind the sidebar toggle."""
 
 from __future__ import annotations
 
@@ -170,7 +170,7 @@ def test_inspector_tabs_and_benchmark_badge():
     at = _page("page_inspector", "P002")
     _ok(at)
     assert at.title[0].value == "Parser & Eval Inspector"
-    assert [t.label for t in at.tabs] == ["Words vs parsed data", "Review queue", "Method", "Evaluation"]
+    assert [t.label for t in at.tabs] == ["Edge cases", "Browse all reports", "Review queue", "Evaluation", "Method"]
     html = _html(at)
     assert "24 / 88 wrong &amp; unflagged" in html and "extracted by" in html
 
@@ -196,3 +196,54 @@ def test_method_page_reads_published_results():
     _ok(at)
     assert not [c for c in at.caption if "not found" in c.value]
     assert any("LLM prompt v2" in m.value for m in at.markdown)
+
+
+def test_inspector_edge_cases_show_real_parse_and_checks():
+    """Each edge case shows the stored rows as JSON, a rationale built from its real flags, and the
+    'Schema valid · Evidence verified' badge only because the stored rows pass the re-check."""
+    at = _page("page_inspector", "P002")
+    _ok(at)
+    pills = at.pills(key="edge_case")
+    assert pills.value.endswith("R0035")
+    expect = {"R0035": ("intra_report_conflict", "vomit_episodes_24h=0"),
+              "R0007": ("superseded", "it was actually 3 times, not once"),
+              "R0089": ("caps any count above 20", "Threw up like a hundred times today"),
+              "R0117": ("urgent red_flag", "severity_mismatch")}
+    for label in pills.options:
+        pills.set_value(label).run()
+        _ok(at)
+        html = _html(at)
+        rid = next(r for r in expect if r in label)
+        for needle in expect[rid]:
+            assert needle in html, (rid, needle)
+        assert "Raw patient submission" in html and "Guardrail rationale" in html
+        assert "Schema valid · Evidence verified" in html and "Check failed" not in html
+        pills = at.pills(key="edge_case")
+
+
+def test_benchmark_table_uses_published_counts():
+    at = _page("page_inspector", "P002")
+    _ok(at)
+    html = _html(at)
+    for cell in ("11 / 16", "13 / 16", "35 / 88", "61 / 88", "50 / 88", "24 / 88", "PRIMARY SAFETY KPI",
+                 "Clinical safety impact"):
+        assert cell in html, cell
+
+
+def test_verify_report_detects_bad_evidence(monkeypatch):
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from dashboard import data
+    assert data.verify_report("R0089")["ok"]
+    monkeypatch.setattr(data, "report_texts", lambda rid: ("something else entirely", {}))
+    res = data.verify_report("R0089")
+    assert not res["ok"] and "evidence not found" in res["problems"][0]
+
+
+def test_deepdive_nurse_review_flags():
+    at = _page("page_deepdive", "P005")
+    _ok(at)
+    html = _html(at)
+    assert "Nurse Review Flags (" in html and "ACTION NEEDED" in html
+    assert "haven&#x27;t been able to keep any water down since this morning" in html
+    assert any(b.label == "✓ Mark Reconciled" for b in at.button)

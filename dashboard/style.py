@@ -125,6 +125,36 @@ button[data-variant="segmented_control"][data-selected="true"] p {{ color:{TEAL}
 .dt-alert {{ border:1px solid {RED_LINE}; background:{RED_TINT}; border-radius:10px; padding:10px 14px;
       color:{RED}; font-size:.9rem; }}
 .dt-label {{ font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:{MUTED}; font-weight:600; }}
+/* ---------- Nurse Review Flags (Deep-Dive) */
+[class*="st-key-flagcard"] {{ background:{AMBER_TINT}; border:1px solid {AMBER_LINE}; border-radius:12px;
+      padding:14px 18px; }}
+
+/* ---------- Inspector: edge cases + benchmark */
+.dt-rationale {{ background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:12px 14px;
+      font-size:.88rem; line-height:1.6; color:#134E4A; margin-top:.4rem; }}
+.dt-rationale b {{ color:{TEAL}; }}
+.dt-code {{ background:#0F172A; border-radius:14px; padding:18px 20px; color:#E2E8F0; height:100%; }}
+.dt-code .hd {{ display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;
+      font-size:.8rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#5EEAD4;
+      margin-bottom:10px; }}
+.dt-code pre {{ margin:0; font-family:{MONO}; font-size:.78rem; line-height:1.55; white-space:pre-wrap;
+      word-break:break-word; max-height:520px; overflow:auto; background:transparent; color:#E2E8F0; }}
+.dt-code .k {{ color:#99F6E4; }} .dt-code .s {{ color:#FDE68A; }} .dt-code .n {{ color:#F9A8D4; }}
+.dt-okbadge {{ font-family:{MONO}; font-size:.68rem; letter-spacing:.04em; padding:2px 8px; border-radius:6px;
+      background:#064E3B; color:#6EE7B7; border:1px solid #10B981; text-transform:uppercase; }}
+.dt-okbadge.bad {{ background:#451A03; color:#FCD34D; border-color:#D97706; text-transform:none; }}
+.dt-bench {{ width:100%; border-collapse:collapse; margin-top:.6rem; font-size:.88rem; }}
+.dt-bench th {{ text-align:left; font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; color:{SLATE};
+      font-weight:600; padding:10px 12px; border-bottom:1px solid {BORDER}; }}
+.dt-bench td {{ padding:12px; border-bottom:1px solid #EEF2F4; vertical-align:middle; color:#1E293B; }}
+.dt-bench td.ds {{ font-family:{MONO}; font-size:.78rem; color:{SLATE}; }}
+.dt-bench td.num {{ font-family:{MONO}; white-space:nowrap; }}
+.dt-bench td.v2 {{ color:{TEAL}; font-weight:600; }}
+.dt-bench .pct {{ font-size:.78rem; opacity:.8; }}
+.dt-bench tr.kpi td {{ background:#F0FAF8; border-top:2px solid {TEAL_LINE}; border-bottom:2px solid {TEAL_LINE}; }}
+.dt-bench .bad {{ background:{RED_TINT}; color:{RED}; border:1px solid {RED_LINE}; border-radius:6px; padding:3px 7px; }}
+.dt-bench .warn {{ background:{AMBER_TINT}; color:{AMBER}; border:1px solid {AMBER_LINE}; border-radius:6px;
+      padding:3px 7px; }}
 </style>
 """
 

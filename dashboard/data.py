@@ -6,6 +6,7 @@ modification time, so re-parsing or resolving a flag invalidates the cache.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from datetime import date, datetime
@@ -14,7 +15,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from cinv.models import INFERRED_PRN_TEXT
+from pydantic import ValidationError
+
+from cinv.common import evidence_in_text
+from cinv.models import INFERRED_PRN_TEXT, IntakeEvent, SymptomEvent
 from run_queries import load_queries
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -376,3 +380,66 @@ def regimen_delta(patient_id: str) -> list[dict]:
                          "prn": None if not days else round(float(doses) / len(days), 1)}
         out.append(res)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Inspector: edge cases (stored rows re-checked against the parser contract)
+# ---------------------------------------------------------------------------
+
+def flag_evidence(flag_id: int) -> list[dict]:
+    """Rows a review flag points at, with their evidence span and extraction method."""
+    df = query("""SELECT e.event_id, e.symptom_code, e.presence, e.evidence_span, e.extraction_method
+                  FROM flag_events fe JOIN symptom_events e ON e.event_id = fe.event_id
+                  WHERE fe.flag_id = ? AND fe.event_table = 'symptom' ORDER BY e.event_id""", [flag_id])
+    return df.to_dict("records")
+
+
+def report_texts(report_id: str) -> tuple[str, dict]:
+    """(patient free text or questionnaire comment, questionnaire answers or {})."""
+    r = query("SELECT raw_text, questionnaire_json FROM raw_reports WHERE report_id = ?", [report_id]).iloc[0]
+    q = json.loads(r["questionnaire_json"]) if isinstance(r["questionnaire_json"], str) else {}
+    text = r["raw_text"] if isinstance(r["raw_text"], str) else (q.get("comments") or "")
+    return text, q
+
+
+def _evidence_ok(span, method: str, text: str, q: dict) -> bool:
+    if method == "questionnaire":           # evidence is "field=value" from the form
+        if not isinstance(span, str) or "=" not in span:
+            return False
+        k, v = span.split("=", 1)
+        return k in q and str(q[k]) == v
+    return evidence_in_text(span, text)
+
+
+def verify_report(report_id: str) -> dict:
+    """Re-validate the stored rows of one report: every symptom / intake row must load into the
+    Pydantic contract (cinv.models) and its evidence must be found verbatim in what the patient
+    submitted (free text / comment, or the questionnaire field). Returns counts and any failures."""
+    text, q = report_texts(report_id)
+    ev = report_events(report_id)
+    it = query("""SELECT med_id, med_text_raw, intake_status, dose_count, taken_date, part_of_day, evidence_span,
+                         extraction_method, confidence FROM medication_intake_events WHERE report_id = ?""",
+               [report_id])
+    problems: list[str] = []
+    for _, e in ev.iterrows():
+        fields = {k: (None if pd.isna(e[k]) else e[k]) for k in
+                  ("symptom_code", "presence", "severity_level", "severity_nrs", "episode_count_min",
+                   "episode_count_max", "occurred_date", "part_of_day", "evidence_span", "extraction_method",
+                   "confidence")}
+        try:
+            SymptomEvent(**fields)
+        except ValidationError as err:
+            problems.append(f"event {e['event_id']}: schema ({err.errors()[0]['msg']})")
+        if not _evidence_ok(e["evidence_span"], e["extraction_method"], text, q):
+            problems.append(f"event {e['event_id']}: evidence not found in the submission")
+    for _, i in it.iterrows():
+        try:
+            IntakeEvent(med=None, med_text_raw=i["med_text_raw"], intake_status=i["intake_status"],
+                        dose_count=int(i["dose_count"]), taken_date=i["taken_date"], part_of_day=i["part_of_day"],
+                        evidence_span=i["evidence_span"], extraction_method=i["extraction_method"],
+                        confidence=float(i["confidence"]))
+        except ValidationError as err:
+            problems.append(f"intake: schema ({err.errors()[0]['msg']})")
+        if not _evidence_ok(i["evidence_span"], i["extraction_method"], text, q):
+            problems.append("intake: evidence not found in the submission")
+    return {"rows": len(ev) + len(it), "problems": problems, "ok": not problems and len(ev) + len(it) > 0}

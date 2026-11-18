@@ -96,9 +96,11 @@ missing evidence, unmapped drugs).
 Two clinical views are anchored to provider decisions. **Overview**: who needs attention (red flags, weight below
 the alert line, silent drop-off of ≥3 days without a report) and a cohort table. **Patient Deep-Dive**: a 4-card
 pre-visit header, Timeline vs Cycle-over-Cycle, a regimen-change marker with an observational before/after panel,
-and an inline review-flag drawer. One developer page, **Parser & Eval Inspector** (tabs: words vs parsed rows, review
-queue, method, evaluation), sits behind a sidebar toggle that is off by default; which parser produced the data is
-shown only there. Design choices:
+and a Nurse Review Flags list (one card per open flag with its evidence and a "Mark Reconciled" button). One
+developer page, **Parser & Eval Inspector** (tabs: edge cases + benchmark, browse all reports, review queue,
+evaluation, method), sits behind a sidebar toggle that is off by default; which parser produced the data is shown only
+there. The edge-case view reads real hard reports from the database and shows the "Schema valid · Evidence verified"
+badge only when the stored rows re-load into the Pydantic models and every evidence span is found in the submission. Design choices:
 
 - **Missing ≠ zero**: hatched "NO LOG" = no nausea or vomiting report that day (unknown); green dot at 0 = patient
   reported no vomiting. The table uses the same words.

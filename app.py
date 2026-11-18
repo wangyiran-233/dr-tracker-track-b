@@ -1,7 +1,7 @@
 """Dr.Tracker Track B prototype dashboard (synthetic data only).
 
 Two clinical views (Overview, Patient Deep-Dive). The developer page "Parser & Eval
-Inspector" (patient words vs parsed data, review queue, method, evaluation) appears
+Inspector" (edge cases + benchmark, all reports, review queue, evaluation, method) appears
 only when the sidebar toggle "Show Parser & Eval Inspector" is on (off by default).
 
 Run:
@@ -34,7 +34,7 @@ with sb.container(key="devbox"):
     st.html("<div class='dt-label' style='margin:0 0 6px 2px'>Demo / developer mode</div>")
     with st.container(key="devcard"):
         dev = st.toggle("Show Parser & Eval Inspector", value=False, key="dev_mode",
-                        help="Audit view for evaluators: patient words vs parsed rows, review queue, "
+                        help="Audit view for evaluators: edge cases, patient words vs parsed rows, review queue, "
                              "parser method and benchmark results. Not part of the clinical workflow.")
         st.caption("Audit LLM extraction, review flags & parser evaluation")
 
