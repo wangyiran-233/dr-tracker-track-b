@@ -234,54 +234,154 @@ def set_flag_status(flag_id: int, status: str, note: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# "Since last visit" comparison
+# Clinical-view helpers (Overview cards, Deep-Dive header, chart provenance)
 # ---------------------------------------------------------------------------
 
-def since_last_visit(patient_id: str) -> dict | None:
-    """Last clinic visit = most recent infusion day (in this synthetic dataset
-    visits coincide with infusions). Compares the days since that visit with
-    the same days-of-cycle in the previous cycle."""
+SILENT_DAYS = 3          # >= this many days without any report -> "silent drop-off"
+PHASES = {"acute": "Acute phase (day 1, ~0-24 h)", "delayed": "Delayed phase (days 2-5, ~24-120 h)"}
+
+
+def reference_date() -> date:
+    """'Today' for this static synthetic snapshot: the most recent report in the dataset."""
+    return date.fromisoformat(query("SELECT MAX(date(submitted_at)) AS d FROM raw_reports")["d"].iloc[0])
+
+
+def last_reports() -> pd.DataFrame:
+    """Latest report per patient with the patient's words (free text or questionnaire comment)."""
+    return query("""SELECT r.patient_id, r.report_id, r.submitted_at, r.source,
+                           COALESCE(r.raw_text, json_extract(r.questionnaire_json, '$.comments')) AS words,
+                           r.questionnaire_json
+                    FROM raw_reports r
+                    WHERE r.submitted_at = (SELECT MAX(x.submitted_at) FROM raw_reports x
+                                            WHERE x.patient_id = r.patient_id)""")
+
+
+def latest_weight(patient_id: str) -> pd.Series | None:
+    df = query("""SELECT t.*, w.evidence_span FROM v_weight_trend t
+                  JOIN weight_measurements w ON w.patient_id = t.patient_id AND w.measured_date = t.measured_date
+                       AND w.weight_kg = t.weight_kg AND w.status = 'active'
+                  WHERE t.patient_id = ? ORDER BY t.measured_date DESC LIMIT 1""", [patient_id])
+    return None if df.empty else df.iloc[0]
+
+
+def cycle_position(patient_id: str, on) -> dict | None:
+    """Chemo cycle and day of cycle on a date (day 1 = infusion day) plus the CINV phase."""
     ch = chemo(patient_id)
-    end = pd.Timestamp(as_of(patient_id))
-    past = ch[ch["d"] <= end]
+    on = pd.Timestamp(on)
+    past = ch[ch["d"] <= on]
     if past.empty:
         return None
     last = past.iloc[-1]
-    n_days = int((end - last["d"]).days) + 1
+    day = int((on - last["d"]).days) + 1
+    phase = "acute" if day == 1 else ("delayed" if day <= 5 else None)
+    return {"cycle": int(last["cycle_number"]), "day": day, "phase": phase,
+            "phase_text": PHASES.get(phase, "Outside the acute/delayed window (day 6+)"),
+            "short": f"C{int(last['cycle_number'])} D{day}"}
+
+
+def _fmt_level(v) -> str:
+    return f"{SEVERITY_LABELS[int(v)]} ({int(v)}/4)"
+
+
+def week_summary(patient_id: str, end=None) -> dict:
+    """7 days ending at `end` (default: the patient's latest report). Keeps 'reported 0'
+    (the patient said none) apart from 'not reported' (no report about it at all)."""
+    end = pd.Timestamp(end or as_of(patient_id))
+    start = end - pd.Timedelta(days=6)
     d = daily(patient_id)
-    p = prn(patient_id)
+    w = d[(d["occurred_date"] >= start) & (d["occurred_date"] <= end)]
+    nau, vom = w[w["symptom_code"] == "nausea"], w[w["symptom_code"] == "vomiting"]
 
-    def window(start: pd.Timestamp) -> dict:
-        stop = start + pd.Timedelta(days=n_days - 1)
-        w = d[(d["occurred_date"] >= start) & (d["occurred_date"] <= stop)]
-        nau = w[w["symptom_code"] == "nausea"]
-        vom = w[w["symptom_code"] == "vomiting"]
-        pw = p[(p["taken_date"] >= start) & (p["taken_date"] <= stop)]
-        open_ended = bool(((vom["presence"] == "present") & vom["episodes_max"].isna()).any())
-        return {
-            "worst_nausea": None if nau["max_severity_level"].dropna().empty else int(nau["max_severity_level"].max()),
-            "vomit_min": int(vom["episodes_min"].fillna(0).sum()),
-            "vomit_open": open_ended,
-            "prn": int(pw["doses"].sum()),
-            "days_reported": int(w["occurred_date"].nunique()),
-        }
+    n_peak_day = None
+    if nau.empty:
+        nausea = "not reported"
+    elif nau["max_severity_level"].dropna().empty:
+        nausea = "present, intensity not stated" if (nau["presence"] == "present").any() else "patient unsure"
+    else:
+        lvl = int(nau["max_severity_level"].max())
+        nausea = _fmt_level(lvl) if lvl else "0/4 (reported none)"
+        if lvl:
+            n_peak_day = nau.loc[nau["max_severity_level"].idxmax(), "occurred_date"].date()
 
-    cur = window(last["d"])
-    prev = None
-    if len(past) >= 2:
-        prev = window(past.iloc[-2]["d"])
-    wt = weights(patient_id)
-    w_now = wt[wt["measured_date"] <= end].tail(1)
-    w_visit = wt[(wt["measured_date"] <= last["d"])].tail(1)
-    fl = open_flags(patient_id)
-    fl_since = fl[pd.to_datetime(fl["submitted_at"]) >= last["d"]]
-    return {
-        "visit_date": last["d"].date(), "cycle": int(last["cycle_number"]), "as_of": end.date(), "n_days": n_days,
-        "current": cur, "previous": prev,
-        "weight_now": None if w_now.empty else float(w_now["weight_kg"].iloc[0]),
-        "weight_pct_baseline": None if w_now.empty else float(w_now["pct_change"].iloc[0]),
-        "weight_below_alert": False if w_now.empty else bool(w_now["below_alert_line"].iloc[0]),
-        "weight_at_visit": None if w_visit.empty else float(w_visit["weight_kg"].iloc[0]),
-        "flags_since": len(fl_since), "red_since": int((fl_since["flag_type"] == "red_flag").sum()),
-        "flags_open_total": len(fl),
-    }
+    v_peak_day = v_peak = None
+    if vom.empty:
+        vomiting = "not reported"
+    else:
+        present = vom[vom["presence"] == "present"]
+        if present.empty:
+            vomiting, v_peak = "0 episodes (reported none)", 0
+        elif present["episodes_min"].dropna().empty:
+            vomiting = "present, count not stated"
+        else:
+            i = present["episodes_min"].idxmax()
+            v_peak = int(present.loc[i, "episodes_min"])
+            hi = present.loc[i, "episodes_max"]
+            ge = "≥" if pd.isna(hi) or hi > v_peak else ""
+            vomiting = f"peak {ge}{v_peak} episode{'s' if v_peak != 1 else ''}/day"
+            v_peak_day = present.loc[i, "occurred_date"].date()
+
+    return {"start": start.date(), "end": end.date(), "nausea": nausea, "nausea_peak_day": n_peak_day,
+            "vomiting": vomiting, "vomiting_peak_day": v_peak_day, "vomiting_peak": v_peak,
+            "days_reported": int(w["occurred_date"].nunique()), **prn_split(patient_id, start, end)}
+
+
+def prn_split(patient_id: str, start, end) -> dict:
+    """As-needed antiemetic doses taken, split into doses of a drug the patient named vs
+    doses attributed to the single active PRN order (questionnaire counts: inferred)."""
+    df = query("""SELECT i.med_text_raw, i.dose_count FROM medication_intake_events i
+                  JOIN medications m ON m.med_id = i.med_id
+                  WHERE i.patient_id = ? AND i.status = 'active' AND i.intake_status = 'taken'
+                    AND m.is_antiemetic = 1 AND i.taken_date BETWEEN ? AND ?
+                    AND EXISTS (SELECT 1 FROM medication_orders o WHERE o.patient_id = i.patient_id
+                                AND o.med_id = i.med_id AND o.is_prn = 1 AND o.start_date <= i.taken_date
+                                AND (o.end_date IS NULL OR o.end_date >= i.taken_date))""",
+               [patient_id, str(pd.Timestamp(start).date()), str(pd.Timestamp(end).date())])
+    inferred = int(df.loc[df["med_text_raw"] == INFERRED_PRN_TEXT, "dose_count"].sum())
+    total = int(df["dose_count"].sum())
+    return {"prn_total": total, "prn_stated": total - inferred, "prn_inferred": inferred}
+
+
+def day_evidence(patient_id: str) -> pd.DataFrame:
+    """Per day and symptom: the verbatim evidence quotes behind the plotted value and any
+    open review flags / uncertainty on those rows (shown in chart tooltips)."""
+    ev = query("""SELECT e.event_id, e.occurred_date, e.symptom_code, e.presence, e.evidence_span
+                  FROM symptom_events e WHERE e.patient_id = ? AND e.status = 'active'""", [patient_id])
+    fl = query("""SELECT fe.event_id, f.flag_type FROM flag_events fe
+                  JOIN review_flags f ON f.flag_id = fe.flag_id
+                  WHERE fe.event_table = 'symptom' AND f.status = 'open' AND f.patient_id = ?""", [patient_id])
+    flags = fl.groupby("event_id")["flag_type"].apply(set).to_dict() if len(fl) else {}
+    rows = []
+    for (day, code), g in ev.groupby(["occurred_date", "symptom_code"]):
+        quotes = list(dict.fromkeys(s for s in g["evidence_span"] if isinstance(s, str) and s))
+        tags = set().union(*[flags.get(i, set()) for i in g["event_id"]])
+        notes = sorted(t.replace("_", " ") for t in tags)
+        if (g["presence"] == "uncertain").any():
+            notes.append("patient unsure")
+        if g["presence"].nunique() > 1:
+            notes.append("reports disagree on presence")
+        rows.append({"occurred_date": pd.Timestamp(day), "symptom_code": code, "evidence": quotes,
+                     "notes": ", ".join(notes) or "none"})
+    return pd.DataFrame(rows, columns=["occurred_date", "symptom_code", "evidence", "notes"])
+
+
+def regimen_delta(patient_id: str) -> list[dict]:
+    """For each medication change: acute + delayed phase days before vs after it (cycle
+    phases only, so quiet recovery days don't dilute either side). Observational only."""
+    ch, d, p = med_changes(patient_id), daily(patient_id), prn(patient_id)
+    ph = d[d["cinv_phase"].isin(["acute", "delayed"])]
+    out = []
+    for _, c in ch.iterrows():
+        res = {"med": c["generic_name"], "dose": c["dose"], "frequency": c["frequency"],
+               "date": c["start_date"].date(), "reason": c["change_reason"]}
+        for side, part in (("before", ph[ph["occurred_date"] < c["start_date"]]),
+                           ("after", ph[ph["occurred_date"] >= c["start_date"]])):
+            nau = part[(part["symptom_code"] == "nausea") & part["max_severity_level"].notna()]
+            vom = part[part["symptom_code"] == "vomiting"]
+            days = list(part["occurred_date"].unique())
+            doses = p[p["taken_date"].isin(days)]["doses"].sum()
+            res[side] = {"days": len(days),
+                         "nausea": None if nau.empty else round(float(nau["max_severity_level"].mean()), 1),
+                         "vomit": None if vom.empty else round(float(vom["episodes_min"].fillna(0).sum()) / len(vom), 1),
+                         "prn": None if not days else round(float(doses) / len(days), 1)}
+        out.append(res)
+    return out

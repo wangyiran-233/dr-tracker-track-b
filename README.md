@@ -95,7 +95,7 @@ and the rebuild above reproduce the published results **without an API key**.
 | `parse_reports.py` | Parse every report into the database |
 | `evaluate.py` | Field-level evaluation against `data/gold_set.json` |
 | `queries.sql`, `run_queries.py` | Four useful queries |
-| `app.py`, `dashboard/` | Streamlit dashboard (5 pages); reads `data/cinv_demo.db` |
+| `app.py`, `dashboard/` | Streamlit dashboard (2 clinical views + developer inspector); reads `data/cinv_demo.db` |
 | `data/cinv_demo.db` | Committed, pre-built synthetic database (LLM prompt v2) for the dashboard |
 | `run_demo.ps1`, `run_demo.sh` | One-command demo: venv + dependencies + dashboard, no API key |
 | `tests/` | pytest suite behind the README's verification claims |
@@ -266,20 +266,29 @@ yesterday — genuinely ambiguous).
 
 ## Dashboard
 
-`streamlit run app.py` (or `run_demo.ps1` / `run_demo.sh`). Every page states **synthetic data** and **which parser produced the data shown**
-(read from `extraction_runs`). Pages 1–2 are designed to be read in about 30 seconds.
+`streamlit run app.py` (or `run_demo.ps1` / `run_demo.sh`). Every page states **synthetic data — not for clinical
+use** and **which parser produced the data shown** (read from `extraction_runs`). Two clinical views, designed to be
+read in about 30 seconds; developer pages are hidden behind a sidebar toggle.
 
-1. **Overview** — pre-visit snapshot (query 3), patients with open red flags first, then open review items,
-   weight alert, worst nausea. Click a row to open the patient.
-2. **Patient trend** — "since last visit" vs the same days of the previous cycle; daily nausea and vomiting
-   (vague counts drawn as ranges); grey = no report (unknown) vs dash at 0 = reported none; markers for
-   uncertain / intensity-not-stated / needs-review / red flag; infusion and medication-change lines; PRN doses;
-   weight with alert line.
-3. **Cycle comparison** — cycles overlaid by day of cycle with acute/delayed phases; P002 before/after the
-   olanzapine addition (labelled observational, not causal).
-4. **Patient's words vs parsed result** — evidence highlighted in the original text, extracted rows and flags
-   (resolve / dismiss with a note), review queue with red flags first.
-5. **Method & evaluation** — provenance, rule vs v1 vs v2, error examples.
+1. **Overview** — a **Needs Attention** banner of cards, one per alert, tagged RED FLAG / WEIGHT ALERT /
+   SILENT DROP-OFF (no report for ≥3 days before the dataset's latest report). Each card shows the trigger, the
+   patient's words, regimen and cycle, how many days ago, whether it is still open, and an *Inspect Patient →* jump.
+   Below it, a cohort table (regimen & cycle, 7-day peak nausea / vomiting, 7-day PRN doses, weight vs baseline,
+   last report, status tags) that wraps instead of truncating. "Reported none" (patient said 0) is kept apart from
+   "not reported" (unknown), the same rule as the chart. Patients are opened with pills, not dropdowns.
+2. **Patient Deep-Dive** — patient pills, then a 4-card pre-visit header (current cycle & phase, 7-day peak nausea
+   & vomiting, 7-day PRN use split into patient-stated vs inferred from the active PRN order, weight vs the
+   practice-configurable alert line). A **Timeline / Cycle-over-Cycle** toggle switches between the daily trend
+   (grey = no report vs dash at 0 = reported 0; vague counts as ranges; infusion lines) and cycles overlaid by day
+   of cycle with acute/delayed phases. A medication change gets a vertical marker (P002: + olanzapine) and a
+   before → after panel for acute + delayed phase days, labelled observational, not causal. Tooltips show the
+   verbatim `evidence_span` quotes and any conflict / uncertainty flags. An inline **Open review flags** drawer
+   lets a nurse resolve / dismiss each flag with a note.
+
+**Show Parser & Eval Inspector** (sidebar toggle, off by default) adds:
+
+3. **Words vs parsed data** — evidence highlighted in the original text, extracted rows and flags, review queue.
+4. **Method & evaluation** — provenance, rule vs v1 vs v2, error examples.
 
 Chart rules: no dual axes (separate panels on a shared date axis), fixed colour roles from a validated palette,
 status colours only for red flags / review items and always with a text label.
