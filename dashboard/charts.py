@@ -1,9 +1,8 @@
-"""Plotly figures. Colour roles (validated reference palette):
-nausea = series 1 (blue), vomiting = series 2 (orange), PRN doses = series 3
-(aqua); cycles in the overlay use slots 1-3 (all-pairs validated). Status
-colours (critical / serious) are reserved for red flags and items needing
-review and always come with a text label. No dual axes: each measure gets its
-own panel on a shared date axis."""
+"""Plotly figures in the dashboard's teal palette. Colour roles: nausea = teal bars (darker =
+worse), vomiting = red line (red is kept for vomiting and red flags), PRN doses = light teal,
+weight alert line = amber. Days with no nausea or vomiting report are hatched "NO LOG" so a
+missing day is never read as 0. Nausea (0-4 scale, left axis) and vomiting episodes (count,
+right axis) share the main panel; PRN doses and weight sit below on the same date axis."""
 
 from __future__ import annotations
 
@@ -16,32 +15,26 @@ from plotly.subplots import make_subplots
 
 from .data import SEVERITY_LABELS
 
-NAUSEA = "#2a78d6"
-VOMIT = "#eb6834"
-PRN = "#1baf7a"
-CYCLE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a"]
-CRITICAL = "#d03b3b"
-SERIOUS = "#ec835a"
-VIOLET = "#6250d6"
-INK2 = "#52514e"
-MUTED = "#898781"
-GRID = "#e1e0d9"
+TEAL = "#0F766E"
+TEAL_DARK = "#134E4A"
+NAUSEA_SHADES = {0: "#B7E4DA", 1: "#7DD3C0", 2: "#2BB3A3", 3: "#0F766E", 4: "#134E4A"}
+VOMIT = "#DC2626"
+ZERO = "#10B981"
+PRN = "#5EB8AE"
+CYCLE_COLORS = ["#0F766E", "#2DD4BF", "#134E4A"]
+CYCLE_DASH = ["solid", "dash", "dot"]
+CRITICAL = "#B42318"
+AMBER = "#D97706"
+REVIEW = "#475569"
+INK2 = "#475569"
+MUTED = "#94A3B8"
+GRID = "#EEF2F4"
+HATCH = "#CBD5E1"
 DAY_MS = 24 * 3600 * 1000   # explicit bar width: a lone bar on a date axis is otherwise drawn hairline-thin
-NODATA = "rgba(137,135,129,0.16)"
 FONT = "system-ui, -apple-system, Segoe UI, sans-serif"
+MONO = "ui-monospace, Consolas, monospace"
 
-SEV_TICKS = dict(tickvals=[0, 1, 2, 3, 4], ticktext=[SEVERITY_LABELS[i] for i in range(5)])
-
-
-def _runs(days: list[pd.Timestamp]) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
-    """Group sorted days into contiguous runs."""
-    out: list[tuple[pd.Timestamp, pd.Timestamp]] = []
-    for d in sorted(days):
-        if out and (d - out[-1][1]).days == 1:
-            out[-1] = (out[-1][0], d)
-        else:
-            out.append((d, d))
-    return out
+SEV_TICKS = dict(tickvals=[0, 1, 2, 3, 4], ticktext=[f"{i} ({SEVERITY_LABELS[i]})" for i in range(5)])
 
 
 def _sev_text(row) -> str:
@@ -79,13 +72,22 @@ PROV = "<br><i>Patient's words:</i><br>%{{customdata[{q}]}}<br><i>Conflict / unc
 
 def _style(fig: go.Figure, height: int) -> None:
     fig.update_layout(
-        height=height, margin=dict(l=90, r=30, t=110, b=50), font=dict(family=FONT, size=13),
-        hovermode="closest", bargap=0.35, barmode="overlay",
+        height=height, margin=dict(l=20, r=20, t=96, b=40), font=dict(family=FONT, size=12.5, color="#334155"),
+        hovermode="closest", bargap=0.35, barmode="overlay", plot_bgcolor="white", paper_bgcolor="white",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=12)),
-        hoverlabel=dict(font=dict(family=FONT), align="left"),
+        hoverlabel=dict(font=dict(family=FONT), align="left", bgcolor="white", bordercolor="#CBD5E1"),
     )
-    fig.update_xaxes(showgrid=False, linecolor=GRID, ticks="outside", tickcolor=GRID)
-    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor=GRID, automargin=True)
+    fig.update_xaxes(showgrid=False, linecolor="#CBD5E1", ticks="outside", tickcolor="#CBD5E1")
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, linecolor="#CBD5E1", automargin=True,
+                     tickfont=dict(family=MONO, size=11))
+
+
+def _cycle_day(chemo: pd.DataFrame, day: pd.Timestamp) -> str:
+    past = chemo[chemo["d"] <= day]
+    if past.empty:
+        return ""
+    last = past.iloc[-1]
+    return f"C{int(last['cycle_number'])}D{int((day - last['d']).days) + 1}"
 
 
 def trend_figure(d: pd.DataFrame, prn: pd.DataFrame, wt: pd.DataFrame, chemo: pd.DataFrame,
@@ -93,26 +95,38 @@ def trend_figure(d: pd.DataFrame, prn: pd.DataFrame, wt: pd.DataFrame, chemo: pd
                  ev: pd.DataFrame | None = None) -> go.Figure:
     start, end = pd.Timestamp(start), pd.Timestamp(end)
     days = pd.date_range(start, end, freq="D")
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.045,
-                        row_heights=[0.31, 0.27, 0.16, 0.26],
-                        subplot_titles=("Nausea - worst reported each day", "Vomiting episodes per day",
+    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.06, row_heights=[0.62, 0.14, 0.24],
+                        specs=[[{"secondary_y": True}], [{}], [{}]],
+                        subplot_titles=("",
                                         "As-needed antiemetic doses", "Weight (kg)"))
     for a in fig.layout.annotations:
         a.update(x=0, xanchor="left", font=dict(size=13, color=INK2))
 
     review_days = flags[(flags["flag_type"] != "red_flag") & (flags["severity"] != "info")]
     red = flags[flags["flag_type"] == "red_flag"]
+    n_all = d[d["symptom_code"] == "nausea"]
+    v_all = d[d["symptom_code"] == "vomiting"]
 
-    # ---------------- nausea
-    n = _prov(d[d["symptom_code"] == "nausea"], ev, "nausea")
+    # ---------------- NO LOG: no nausea and no vomiting report that day (unknown, not 0)
+    logged = set(n_all["occurred_date"]) | set(v_all["occurred_date"])
+    missing = [x for x in days if x not in logged]
+    if missing:
+        fig.add_trace(go.Bar(
+            x=missing, y=[4.6] * len(missing), width=DAY_MS * 0.7, name="No report that day (unknown, not 0)",
+            marker=dict(color="rgba(255,255,255,0)", line=dict(color=HATCH, width=1),
+                        pattern=dict(shape="/", fgcolor=HATCH, size=7, solidity=0.25)),
+            text=["NO LOG"] * len(missing), textposition="inside", insidetextanchor="middle", textangle=-90,
+            textfont=dict(family=MONO, size=9, color="#94A3B8"),
+            hovertemplate="%{x|%b %d}<br><b>No report that day</b> (unknown, not 0)<extra></extra>"), 1, 1)
+
+    # ---------------- nausea bars (teal, darker = worse)
+    n = _prov(n_all, ev, "nausea")
     n["label"] = n.apply(_sev_text, axis=1)
     known = n[n["max_severity_level"].notna() & (n["presence"] != "uncertain")]
-    line = known.set_index("occurred_date")["max_severity_level"].reindex(days)
-    fig.add_trace(go.Scatter(x=days, y=line, mode="lines", line=dict(color=NAUSEA, width=2),
-                             hoverinfo="skip", showlegend=False, connectgaps=False), 1, 1)
-    fig.add_trace(go.Scatter(
-        x=known["occurred_date"], y=known["max_severity_level"], mode="markers", name="Nausea",
-        marker=dict(color=NAUSEA, size=9, line=dict(color="white", width=2)),
+    lv = known["max_severity_level"].astype(int)
+    fig.add_trace(go.Bar(
+        x=known["occurred_date"], y=lv.clip(lower=0.08) if len(lv) else lv, width=DAY_MS * 0.62,
+        name="Nausea severity (0-4)", marker=dict(color=[NAUSEA_SHADES[i] for i in lv], cornerradius=4),
         customdata=known[["label", "n_reports", "quote", "notes"]],
         hovertemplate="%{x|%b %d}<br><b>Nausea: %{customdata[0]}</b> · %{customdata[1]} report(s)"
                       + PROV.format(q=2, n=3) + "<extra></extra>"), 1, 1)
@@ -120,7 +134,7 @@ def trend_figure(d: pd.DataFrame, prn: pd.DataFrame, wt: pd.DataFrame, chemo: pd
     if len(unstated):
         fig.add_trace(go.Scatter(
             x=unstated["occurred_date"], y=[1] * len(unstated), mode="markers", name="Nausea, intensity not stated",
-            marker=dict(color=NAUSEA, size=10, symbol="circle-open", line=dict(width=2)),
+            marker=dict(color=TEAL, size=11, symbol="circle-open", line=dict(width=2)),
             customdata=unstated[["quote", "notes"]],
             hovertemplate="%{x|%b %d}<br><b>Nausea present, intensity not stated</b>" + PROV.format(q=0, n=1)
                           + "<extra></extra>"), 1, 1)
@@ -134,122 +148,112 @@ def trend_figure(d: pd.DataFrame, prn: pd.DataFrame, wt: pd.DataFrame, chemo: pd
             hovertemplate="%{x|%b %d}<br><b>Patient unsure whether it was nausea</b>" + PROV.format(q=0, n=1)
                           + "<extra></extra>"), 1, 1)
 
-    # ---------------- vomiting
-    v = _prov(d[d["symptom_code"] == "vomiting"], ev, "vomiting")
+    # ---------------- vomiting line (red, right axis)
+    v = _prov(v_all, ev, "vomiting")
+    v["y"] = v["episodes_min"].where(v["presence"] == "present", 0)
+    v.loc[(v["presence"] == "present") & v["y"].isna(), "y"] = 1
     vp = v[v["presence"] == "present"].copy()
-    vp["rng"] = [str(int(lo)) if hi == lo else (f"at least {int(lo)}" if pd.isna(hi) else f"{int(lo)}-{int(hi)}")
-                 for lo, hi in zip(vp["episodes_min"], vp["episodes_max"])]
+    vp["rng"] = [str(int(lo)) if hi == lo else (f"≥{int(lo)}" if pd.isna(hi) else f"{int(lo)}-{int(hi)}")
+                 for lo, hi in zip(vp["episodes_min"].fillna(1), vp["episodes_max"])]
+    line = v.set_index("occurred_date")["y"].reindex(days)
+    fig.add_trace(go.Scatter(x=days, y=line, mode="lines", line=dict(color=VOMIT, width=2.2),
+                             hoverinfo="skip", showlegend=False, connectgaps=False), 1, 1, secondary_y=True)
     err = (vp["episodes_max"] - vp["episodes_min"]).fillna(0)
-    fig.add_trace(go.Bar(
-        x=vp["occurred_date"], y=vp["episodes_min"], name="Vomiting episodes", marker_color=VOMIT, width=DAY_MS * 0.6,
-        marker_cornerradius=4,
-        error_y=dict(type="data", array=err, arrayminus=[0] * len(vp), color=VOMIT, thickness=2, width=6),
+    fig.add_trace(go.Scatter(
+        x=vp["occurred_date"], y=vp["y"], mode="markers+text", name="Vomiting episodes",
+        text=[f"{r}v" for r in vp["rng"]], textposition="top center",
+        textfont=dict(family=MONO, size=11, color=VOMIT),
+        marker=dict(color=VOMIT, size=10, line=dict(color="white", width=2)),
+        error_y=dict(type="data", array=err, arrayminus=[0] * len(vp), color=VOMIT, thickness=1.5, width=5),
         customdata=vp[["rng", "n_reports", "quote", "notes"]],
         hovertemplate="%{x|%b %d}<br><b>Vomiting: %{customdata[0]} episode(s)</b> · %{customdata[1]} report(s)"
-                      + PROV.format(q=2, n=3) + "<extra></extra>"), 2, 1)
-    open_ended = vp[vp["episodes_max"].isna()]
-    if len(open_ended):
-        fig.add_trace(go.Scatter(
-            x=open_ended["occurred_date"], y=open_ended["episodes_min"] + 0.6, mode="markers+text",
-            name="Count open-ended", text=["≥"] * len(open_ended), textposition="top center",
-            marker=dict(symbol="triangle-up", color=VOMIT, size=10),
-            hovertemplate="%{x|%b %d}<br>At least this many; exact number unknown<extra></extra>"), 2, 1)
+                      + PROV.format(q=2, n=3) + "<extra></extra>"), 1, 1, secondary_y=True)
     zero = v[v["presence"] == "absent"]
     fig.add_trace(go.Scatter(
-        x=zero["occurred_date"], y=[0] * len(zero), mode="markers", name="Reported 0 episodes",
-        marker=dict(symbol="line-ew-open", color=VOMIT, size=12, line=dict(width=3)),
+        x=zero["occurred_date"], y=[0] * len(zero), mode="markers", name="Reported 0 vomiting",
+        marker=dict(color=ZERO, size=9, line=dict(color="white", width=1.5)),
         customdata=zero[["quote", "notes"]],
         hovertemplate="%{x|%b %d}<br><b>Reported 0 episodes</b> (patient said none)" + PROV.format(q=0, n=1)
-                      + "<extra></extra>"), 2, 1)
+                      + "<extra></extra>"), 1, 1, secondary_y=True)
 
     # ---------------- needs-review rings and red flags
     if len(review_days):
-        for code, row in (("nausea", 1), ("vomiting", 2)):
+        first = True
+        for code in ("nausea", "vomiting"):
             rd = review_days[review_days["symptom_code"] == code].drop_duplicates("occurred_date")
             if rd.empty:
                 continue
-            src = d[d["symptom_code"] == code].set_index("occurred_date")
-            ys = []
-            for dt in rd["occurred_date"]:
-                r = src.loc[dt] if dt in src.index else None
-                if r is None:
-                    ys.append(0)
-                elif code == "nausea":
-                    ys.append(r["max_severity_level"] if not pd.isna(r["max_severity_level"]) else 1)
-                else:
-                    ys.append(r["episodes_min"] if not pd.isna(r["episodes_min"]) else 0)
+            src = (known if code == "nausea" else v).set_index("occurred_date")
+            col = "max_severity_level" if code == "nausea" else "y"
+            ys = [float(src.loc[dt, col]) if dt in src.index and not pd.isna(src.loc[dt, col]) else
+                  (1.0 if code == "nausea" else 0.0) for dt in rd["occurred_date"]]
             fig.add_trace(go.Scatter(
                 x=rd["occurred_date"], y=ys, mode="markers", name="Needs review (conflict etc.)",
-                legendgroup="review", showlegend=(row == 1 or "nausea" not in set(review_days["symptom_code"])),
-                marker=dict(symbol="circle-open", size=20, color=SERIOUS, line=dict(width=2.5)),
+                legendgroup="review", showlegend=first,
+                marker=dict(symbol="circle-open", size=22, color=REVIEW, line=dict(width=2)),
                 customdata=rd[["flag_type", "description"]],
                 hovertemplate="%{x|%b %d}<br><b>Needs review: %{customdata[0]}</b><br>%{customdata[1]}"
-                              "<extra></extra>"), row, 1)
+                              "<extra></extra>"), 1, 1, secondary_y=(code == "vomiting"))
+            first = False
     if len(red):
         rr = red.drop_duplicates("occurred_date")
         fig.add_trace(go.Scatter(
-            x=rr["occurred_date"], y=[4.55] * len(rr), mode="markers+text", name="Red flag (open)",
-            text=["RED FLAG"] * len(rr), textposition="middle right", textfont=dict(color=CRITICAL, size=11),
-            marker=dict(symbol="diamond", color=CRITICAL, size=13),
+            x=rr["occurred_date"], y=[4.45] * len(rr), mode="markers+text", name="Red flag (open)",
+            text=["RED FLAG"] * len(rr), textposition="middle right",
+            textfont=dict(color=CRITICAL, size=10.5, family=MONO),
+            marker=dict(symbol="diamond", color=CRITICAL, size=12),
             customdata=rr[["description"]],
             hovertemplate="%{x|%b %d}<br><b>Red flag</b><br>%{customdata[0]}<extra></extra>"), 1, 1)
 
     # ---------------- PRN
-    fig.add_trace(go.Bar(x=prn["taken_date"], y=prn["doses"], name="PRN antiemetic doses", marker_color=PRN, width=DAY_MS * 0.6,
-                         marker_cornerradius=4,
-                         hovertemplate="%{x|%b %d}<br>%{y} as-needed dose(s)<extra></extra>"), 3, 1)
+    fig.add_trace(go.Bar(x=prn["taken_date"], y=prn["doses"], name="PRN antiemetic doses", marker_color=PRN,
+                         width=DAY_MS * 0.6, marker_cornerradius=3,
+                         hovertemplate="%{x|%b %d}<br>%{y} as-needed dose(s)<extra></extra>"), 2, 1)
 
     # ---------------- weight
     if len(wt):
         fig.add_trace(go.Scatter(
             x=wt["measured_date"], y=wt["weight_kg"], mode="lines+markers", name="Weight", showlegend=False,
             line=dict(color=INK2, width=2),
-            marker=dict(size=9, color=INK2, symbol=["square" if s == "clinic" else "circle" for s in wt["source"]]),
+            marker=dict(size=8, color=INK2, symbol=["square" if s == "clinic" else "circle" for s in wt["source"]]),
             customdata=wt[["source", "pct_change"]],
             hovertemplate="%{x|%b %d}<br>%{y:.1f} kg (%{customdata[0]})<br>%{customdata[1]:+.1f}% vs baseline"
-                          "<extra></extra>"), 4, 1)
+                          "<extra></extra>"), 3, 1)
         alert, base = wt["alert_line_kg"].iloc[0], wt["baseline_weight_kg"].iloc[0]
-        fig.add_hline(y=alert, line=dict(color=CRITICAL, dash="dash", width=1.5), row=4, col=1,
+        fig.add_hline(y=alert, line=dict(color=AMBER, dash="dash", width=1.5), row=3, col=1,
                       annotation_text=f"alert line {alert:.1f} kg", annotation_position="bottom right",
-                      annotation_font=dict(color=CRITICAL, size=11))
-        fig.add_hline(y=base, line=dict(color=MUTED, dash="dot", width=1), row=4, col=1,
+                      annotation_font=dict(color=AMBER, size=11))
+        fig.add_hline(y=base, line=dict(color=MUTED, dash="dot", width=1), row=3, col=1,
                       annotation_text=f"baseline {base:.1f} kg", annotation_position="top right",
                       annotation_font=dict(color=MUTED, size=11))
         lo = min(wt["weight_kg"].min(), alert) - 0.8
         hi = max(wt["weight_kg"].max(), base) + 0.8
-        fig.update_yaxes(range=[lo, hi], row=4, col=1)
-
-    # ---------------- days with no report for that symptom
-    for code, row in (("nausea", 1), ("vomiting", 2)):
-        have = set(d.loc[d["symptom_code"] == code, "occurred_date"])
-        missing = [x for x in days if x not in have]
-        for a, b in _runs(missing):
-            fig.add_vrect(x0=a - pd.Timedelta(hours=12), x1=b + pd.Timedelta(hours=12), fillcolor=NODATA,
-                          line_width=0, layer="below", row=row, col=1)
-    fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name="No report that day (unknown, not 0)",
-                             marker=dict(symbol="square", size=12, color=NODATA)), 1, 1)
+        fig.update_yaxes(range=[lo, hi], row=3, col=1)
 
     # ---------------- infusion days and medication changes (all panels)
     for _, c in chemo.iterrows():
-        fig.add_vline(x=c["d"], line=dict(color=INK2, dash="dot", width=1.2), row="all", col=1)
-        fig.add_annotation(x=c["d"], y=1.0, xref="x", yref="paper", yanchor="bottom", yshift=24, showarrow=False,
-                           text=f"<b>Chemo C{c['cycle_number']}</b>", font=dict(size=11, color=INK2))
+        fig.add_vline(x=c["d"], line=dict(color=MUTED, dash="dot", width=1.2), row="all", col=1)
+        fig.add_annotation(x=c["d"], y=1.0, xref="x", yref="paper", yanchor="bottom", yshift=4, showarrow=False,
+                           text=f"<b>C{c['cycle_number']} infusion</b>", font=dict(size=11, color=INK2))
     for _, m in changes.iterrows():
-        fig.add_vline(x=m["start_date"], line=dict(color=VIOLET, width=2.5), row="all", col=1)
+        fig.add_vline(x=m["start_date"], line=dict(color=TEAL_DARK, dash="dash", width=2), row="all", col=1)
         fig.add_annotation(x=m["start_date"], y=0.985, xref="x", yref="paper", yanchor="top", xanchor="left",
-                           showarrow=False, text=f"<b>Regimen change:</b> + {m['generic_name']} {m['dose']}",
-                           font=dict(size=11, color=VIOLET), bgcolor="rgba(255,255,255,0.85)",
-                           bordercolor=VIOLET, borderwidth=1, borderpad=3)
+                           xshift=6, showarrow=False,
+                           text=f"<b>Regimen change:</b> + {m['generic_name']} {m['dose']}",
+                           font=dict(size=11.5, color=TEAL_DARK, family=MONO), bgcolor="#F0FAF8",
+                           bordercolor=TEAL, borderwidth=1.2, borderpad=5)
 
-    _style(fig, 900)
-    fig.update_layout(legend=dict(y=1.075))
-    fig.update_yaxes(range=[-0.3, 4.9], row=1, col=1, **SEV_TICKS)
-    vmax = max(4, (vp["episodes_max"].fillna(vp["episodes_min"] + 1).max() if len(vp) else 0) + 1.5)
-    fig.update_yaxes(range=[-0.4, vmax], row=2, col=1, dtick=2)
+    _style(fig, 860)
+    fig.update_layout(legend=dict(y=1.07, x=0, xanchor="left"), margin=dict(t=88))
+    fig.update_yaxes(range=[0, 4.8], row=1, col=1, secondary_y=False, title_text="Nausea (0-4)", **SEV_TICKS)
+    vmax = max(5.0, float(line.max() if line.notna().any() else 0) + float(err.max() if len(err) else 0) + 1.2)
+    fig.update_yaxes(range=[0, vmax], row=1, col=1, secondary_y=True, showgrid=False, dtick=1,
+                     title_text="Vomiting episodes", title_font=dict(color=VOMIT), tickfont=dict(color=VOMIT))
     pmax = max(3, prn["doses"].max() + 0.5 if len(prn) else 0)
-    fig.update_yaxes(range=[0, pmax], row=3, col=1, dtick=1)
+    fig.update_yaxes(range=[0, pmax], row=2, col=1, dtick=1)
+    ticks = list(pd.date_range(start, end, freq="7D"))
     fig.update_xaxes(range=[start - pd.Timedelta(hours=18), end + pd.Timedelta(hours=18)],
-                     dtick=7 * 24 * 3600 * 1000, tickformat="%b %d", tick0=start)
+                     tickvals=ticks, ticktext=[f"{t:%b %d}<br>{_cycle_day(chemo, t)}" for t in ticks])
     return fig
 
 
@@ -263,11 +267,11 @@ def cycle_figure(d: pd.DataFrame, chemo: pd.DataFrame, changes: pd.DataFrame, ma
     for a in fig.layout.annotations:
         a.update(x=0, xanchor="left", font=dict(size=13, color=INK2))
 
-    for x0, x1, label, alpha in ((0.5, 1.5, "acute", 0.22), (1.5, 5.5, "delayed", 0.11)):
+    for x0, x1, label, alpha in ((0.5, 1.5, "acute", 0.16), (1.5, 5.5, "delayed", 0.07)):
         # drawn before the traces exist, so empty subplots must not be skipped
-        fig.add_vrect(x0=x0, x1=x1, fillcolor=f"rgba(137,135,129,{alpha})", line_width=0, layer="below",
+        fig.add_vrect(x0=x0, x1=x1, fillcolor=f"rgba(15,118,110,{alpha})", line_width=0, layer="below",
                       row="all", col=1, exclude_empty_subplots=False)
-        fig.add_annotation(x=(x0 + x1) / 2, y=1.0, xref="x", yref="paper", yanchor="bottom", yshift=24,
+        fig.add_annotation(x=(x0 + x1) / 2, y=1.0, xref="x", yref="paper", yanchor="bottom", yshift=4,
                            showarrow=False, text=f"<b>{label} phase</b>", font=dict(size=11, color=INK2))
 
     for i, (_, c) in enumerate(chemo.iterrows()):
@@ -282,7 +286,7 @@ def cycle_figure(d: pd.DataFrame, chemo: pd.DataFrame, changes: pd.DataFrame, ma
         by_day = n.set_index("day_of_cycle").reindex(range(1, max_day + 1))
         fig.add_trace(go.Scatter(
             x=list(range(1, max_day + 1)), y=by_day["max_severity_level"], mode="lines+markers", name=name,
-            legendgroup=name, line=dict(color=color, width=2),
+            legendgroup=name, line=dict(color=color, width=2.2, dash=CYCLE_DASH[i % len(CYCLE_DASH)]),
             marker=dict(size=8, color=color, line=dict(color="white", width=1.5)), connectgaps=False,
             customdata=by_day[["quote", "notes"]].fillna(""),
             hovertemplate=f"{name}<br>Day %{{x}} · <b>nausea level %{{y}}</b>" + PROV.format(q=0, n=1)
@@ -299,7 +303,7 @@ def cycle_figure(d: pd.DataFrame, chemo: pd.DataFrame, changes: pd.DataFrame, ma
                           + "<extra></extra>"), 2, 1)
 
     _style(fig, 600)
-    fig.update_layout(barmode="group", legend=dict(y=1.12))
+    fig.update_layout(barmode="group", legend=dict(y=1.1))
     fig.update_yaxes(range=[-0.3, 4.6], row=1, col=1, **SEV_TICKS)
     fig.update_yaxes(rangemode="tozero", dtick=2, row=2, col=1)
     fig.update_xaxes(range=[0.5, max_day + 0.5], dtick=1, title_text="Day of cycle (day 1 = infusion day)",

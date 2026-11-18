@@ -96,12 +96,17 @@ missing evidence, unmapped drugs).
 Two clinical views are anchored to provider decisions. **Overview**: who needs attention (red flags, weight below
 the alert line, silent drop-off of ≥3 days without a report) and a cohort table. **Patient Deep-Dive**: a 4-card
 pre-visit header, Timeline vs Cycle-over-Cycle, a regimen-change marker with an observational before/after panel,
-and an inline review-flag drawer. Developer audit pages (words vs parsed rows, method and evaluation) sit behind a
-sidebar toggle that is off by default. Design choices:
+and an inline review-flag drawer. One developer page, **Parser & Eval Inspector** (tabs: words vs parsed rows, review
+queue, method, evaluation), sits behind a sidebar toggle that is off by default; which parser produced the data is
+shown only there. Design choices:
 
-- **Missing ≠ zero**: grey = no report (unknown); dash at 0 = patient reported none. The table uses the same words.
+- **Missing ≠ zero**: hatched "NO LOG" = no nausea or vomiting report that day (unknown); green dot at 0 = patient
+  reported no vomiting. The table uses the same words.
+- **One palette**: teal (#0F766E and its tints) for everything routine, nausea bars included; red only for red flags
+  and vomiting, amber only for weight alerts. Nausea (0–4) and vomiting counts share the main chart on two labelled
+  axes so a provider reads both at once; PRN doses and weight sit below on the same date axis.
 - **Hover-first provenance**: tooltips show the verbatim `evidence_span` and any conflict / uncertainty flag.
-- **One time base**: a single **as-of date** (the last day in the dataset) is shown at the top of every page.
+- **One time base**: a single **as-of date** (the last day in the dataset) is shown in the subtitle of every page.
   "Days ago", the silent drop-off rule and every "last 7 days" window use it, in SQL (`pre_visit_snapshot`) and in
   the UI alike, so a patient who stopped reporting shows gaps instead of an older, healthier-looking window.
 

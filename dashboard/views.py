@@ -1,6 +1,6 @@
-"""Dashboard pages. Two clinical views (Overview, Patient Deep-Dive) for a provider
-with 30 seconds; two developer pages (Words vs parsed data, Method & evaluation)
-sit behind the sidebar toggle "Show Parser & Eval Inspector"."""
+"""Dashboard pages. Two clinical views (Overview, Patient Deep-Dive) for a provider with
+30 seconds; one developer page (Parser & Eval Inspector: patient words vs parsed data,
+review queue, method, evaluation) behind the sidebar toggle "Show Parser & Eval Inspector"."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ import streamlit as st
 from . import data
 from .charts import cycle_figure, trend_figure
 from .data import SEVERITY_LABELS
+from .style import (AMBER, AMBER_LINE, AMBER_TINT, BORDER, RED, RED_LINE, RED_TINT, SLATE, TEAL, TEAL_DARK,
+                    TEAL_LINE, TEAL_TINT, esc, tag as _tag)
 
 PAGES: dict = {}          # filled by app.py: name -> st.Page (for switch_page)
 
@@ -24,18 +26,18 @@ FLAG_LABELS = {
     "duplicate_report": "Duplicate report", "low_confidence": "Low confidence",
 }
 SEVERITY_ICON = {"urgent": "🔴", "warning": "⚠️", "info": "ℹ️"}
-HL = {   # evidence highlight tints (series colours at low alpha; text stays in ink)
-    "nausea": "rgba(42,120,214,.22)", "vomiting": "rgba(235,104,52,.26)", "retching": "rgba(235,104,52,.26)",
-    "appetite_loss": "rgba(27,175,122,.26)", "unable_to_keep_fluids": "rgba(208,59,59,.24)",
-    "medication": "rgba(98,80,214,.22)", "weight": "rgba(137,135,129,.30)",
+HL = {   # evidence highlight tints (low alpha; text stays in ink)
+    "nausea": "rgba(20,184,166,.24)", "vomiting": "rgba(220,38,38,.18)", "retching": "rgba(220,38,38,.18)",
+    "appetite_loss": "rgba(15,118,110,.14)", "unable_to_keep_fluids": "rgba(220,38,38,.28)",
+    "medication": "rgba(71,85,105,.18)", "weight": "rgba(217,119,6,.22)",
 }
-# Alert card / status tag styles: (label, background, ink)
+# Alert card / status tag styles: (label, ink, background, border)
 TAGS = {
-    "red": ("RED FLAG", "#FDECEC", "#B42318"),
-    "weight": ("WEIGHT ALERT", "#FEF3C7", "#92400E"),
-    "silent": ("SILENT DROP-OFF", "#E5E7EB", "#374151"),
-    "review": ("TO REVIEW", "#FFF4E5", "#9A3412"),
-    "stable": ("STABLE", "#E6F4F1", "#0F766E"),
+    "red": ("RED FLAG", RED, RED_TINT, RED_LINE),
+    "weight": ("WEIGHT ALERT", AMBER, AMBER_TINT, AMBER_LINE),
+    "silent": ("SILENT DROP-OFF", "#344054", "#F2F4F7", "#D0D5DD"),
+    "review": ("TO REVIEW", SLATE, "#F1F5F9", "#CBD5E1"),
+    "stable": ("STABLE", TEAL, TEAL_TINT, TEAL_LINE),
 }
 SORT_NOTE = ("Sorted by type (red flag → weight alert → silent drop-off), then within type: "
              "most recent red flag, largest weight loss, longest silence")
@@ -45,31 +47,25 @@ SORT_NOTE = ("Sorted by type (red flag → weight alert → silent drop-off), th
 # Shared pieces
 # ---------------------------------------------------------------------------
 
-def header(title: str, subtitle: str | None = None) -> bool:
+def page_head(title: str, eyebrow: str | None = None) -> bool:
+    """Eyebrow label + page title; returns False (with an error) if the database is not ready."""
+    if eyebrow:
+        st.html(f"<span class='dt-eyebrow'>{esc(eyebrow)}</span>")
     st.title(title)
     msg = data.db_ready()
     if msg:
         st.error(msg)
         return False
-    info = data.parser_info()
-    run = f" · parsed {info['run_at'].replace('T', ' ')[:16]}" if info["run_at"] else ""
-    st.info(f"**Synthetic data — not for clinical use.** · **Data as of {data.as_of():%b %d, %Y}** (last day in the "
-            f"dataset; “days ago” and “last 7 days” are counted from this date)  \n"
-            f"Structured data on this dashboard was extracted by: **{info['label']}**{run}", icon="🧪")
-    if subtitle:
-        st.caption(subtitle)
     return True
 
 
-def esc(s) -> str:
-    return html.escape(str(s))
+def subtitle(text: str) -> None:
+    st.html(f"<div class='dt-sub'>{text}</div><hr class='dt-rule'>")
 
 
 def tag(kind: str, text: str | None = None) -> str:
-    label, bg, ink = TAGS[kind]
-    return (f"<span style='background:{bg};color:{ink};border:1px solid {ink}33;border-radius:5px;"
-            f"padding:1px 7px;font-size:.72rem;font-weight:700;letter-spacing:.04em;white-space:nowrap;"
-            f"font-family:ui-monospace,Consolas,monospace'>{esc(text or label)}</span>")
+    label, ink, bg, line = TAGS[kind]
+    return _tag(text or label, ink, bg, line)
 
 
 def short_name(name: str) -> str:
@@ -99,8 +95,12 @@ def _q_summary(qjson: str | None) -> str:
     q = json.loads(qjson)
     if q.get("comments"):
         return q["comments"]
-    parts = [f"{k}={v}" for k, v in q.items() if k != "comments" and v is not None]
-    return "Questionnaire: " + " · ".join(parts[:5])
+    labels = {"nausea_0_10": "nausea {}/10", "vomit_episodes_24h": "vomiting {}×",
+              "appetite_loss_0_10": "appetite loss {}/10", "kept_fluids_down": "fluids kept down: {}",
+              "prn_antiemetic_doses_24h": "PRN doses {}", "weight_kg": "weight {} kg"}
+    parts = [labels[k].format(v) if k in labels else f"{k.replace('_', ' ')} {v}"
+             for k, v in q.items() if k != "comments" and v is not None]
+    return "questionnaire — " + " · ".join(parts[:5])
 
 
 def _clip(s: str, n: int = 170) -> str:
@@ -111,10 +111,14 @@ def _ago(days: int) -> str:
     return "today" if days == 0 else ("1 day ago" if days == 1 else f"{days} days ago")
 
 
+def _go(page: str) -> None:
+    if page in PAGES:
+        st.switch_page(PAGES[page])
+
+
 def _go_deepdive(pid: str) -> None:
     st.session_state["pid"] = pid
-    if "deepdive" in PAGES:
-        st.switch_page(PAGES["deepdive"])
+    _go("deepdive")
 
 
 def _flag_actions(flag_id: int, key: str) -> None:
@@ -127,6 +131,26 @@ def _flag_actions(flag_id: int, key: str) -> None:
     if b2.button("Dismiss", key=f"dis_{key}_{flag_id}"):
         data.set_flag_status(int(flag_id), "dismissed", note)
         st.rerun()
+
+
+def current_pid() -> str:
+    """Patient shown in the Deep-Dive (sidebar badge): the last one opened, else the first."""
+    if data.db_ready():
+        return ""
+    ids = list(data.patients()["patient_id"])
+    pid = st.session_state.get("pid")
+    return pid if pid in ids else (ids[0] if ids else "")
+
+
+def attention_count() -> int:
+    """Number of patients with at least one Needs Attention card (sidebar badge)."""
+    if data.db_ready():
+        return 0
+    return len({i["pid"] for i in attention_items(data.snapshot())})
+
+
+def _as_of_text() -> str:
+    return f"Data as of {data.as_of():%b %d, %Y}"
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +187,8 @@ def attention_items(snap: pd.DataFrame) -> list[dict]:
         cp = data.cycle_position(pid, mdate)
         src = "clinic weight" if w["source"] == "clinic" else "patient-reported"
         quote = w["evidence_span"] if isinstance(w["evidence_span"], str) else f"{w['weight_kg']:.1f} kg"
+        if quote.startswith("weight_kg="):          # questionnaire field, not free text
+            quote = f"questionnaire — weight {w['weight_kg']:.1f} kg"
         items.append({"kind": "weight", "pid": pid, "name": names[pid],
                       "reason": f"{w['pct_change']:+.1f}% vs baseline — at/below the practice alert line "
                                 f"({w['alert_line_kg']:.1f} kg = −{pts.loc[pid, 'weight_alert_pct']:g}%)",
@@ -195,39 +221,44 @@ def attention_items(snap: pd.DataFrame) -> list[dict]:
 
 
 def _attention_card(item: dict, idx: int) -> None:
-    _, bg, ink = TAGS[item["kind"]]
-    with st.container(border=True):
-        st.markdown(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:8px'>"
-            f"<b style='font-size:1.02rem'>{esc(item['pid'])} · {esc(item['name'])}</b>{tag(item['kind'])}</div>"
-            f"<div style='color:{ink};font-weight:600;margin:.45em 0 .5em'>{esc(item['reason'])}</div>"
-            f"<div style='background:{bg};border-radius:8px;padding:8px 10px;font-family:ui-monospace,Consolas,"
-            f"monospace;font-size:.85rem;line-height:1.45'>“{esc(_clip(item['quote']))}”</div>"
-            f"<div style='font-size:.82rem;opacity:.8;margin-top:.55em'>{esc(item['cycle'])} · "
-            f"{esc(item['regimen'])}</div>"
-            f"<div style='font-size:.82rem;margin-top:.15em'>{esc(item['when'])} ({_ago(item['days'])}) · "
-            f"<b>{esc(item['status'])}</b></div>",
-            unsafe_allow_html=True)
-        if st.button("Inspect Patient →", key=f"attn_{idx}_{item['pid']}", type="primary"):
-            _go_deepdive(item["pid"])
+    _, ink, _, _ = TAGS[item["kind"]]
+    with st.container(key=f"attncard-{item['kind']}-{idx}", gap="small"):
+        st.html(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:6px 8px;flex-wrap:wrap'>"
+            f"<b style='font-size:1.02rem;white-space:nowrap'>{esc(item['pid'])} · {esc(item['name'])}</b>"
+            f"{tag(item['kind'])}</div>"
+            f"<div style='color:{ink};font-weight:600;font-size:.9rem;margin:.55em 0 .6em;line-height:1.4'>"
+            f"{esc(item['reason'])}</div>"
+            f"<div class='dt-quote'>“{esc(_clip(item['quote'], 150))}”</div>")
+        with st.container(gap="small"):
+            st.html(f"<div class='dt-small' style='line-height:1.45'>{esc(item['cycle'])} · {esc(item['regimen'])}"
+                    f"<br>{esc(item['when'])} ({_ago(item['days'])}) · <b style='color:#334155'>"
+                    f"{esc(item['status'])}</b></div>")
+            with st.container(horizontal=True, horizontal_alignment="right"):
+                if st.button("Inspect Patient →", key=f"attn_{idx}_{item['pid']}", type="primary"):
+                    _go_deepdive(item["pid"])
 
 
 def needs_attention(snap: pd.DataFrame) -> None:
-    """High-visibility banner above the summary table."""
+    """High-visibility section above the summary table; cards in rows of three, equal height."""
     items = attention_items(snap)
-    if not items:
-        st.success("✓ Needs Attention: no open red flags, weight alerts or silent drop-offs.")
-        return
-    n_pat = len({i["pid"] for i in items})
-    with st.container(border=True):
-        left, right = st.columns([2, 3], vertical_alignment="center")
-        left.markdown(f"#### ⚠️ Needs Attention ({n_pat} patient{'s' if n_pat != 1 else ''}, "
-                      f"{len(items)} alert{'s' if len(items) != 1 else ''})")
-        right.markdown(f"<div style='text-align:right;font-size:.85rem;opacity:.8'>{SORT_NOTE}</div>",
-                       unsafe_allow_html=True)
-        per_row = 3
+    with st.container(key="card_attention"):
+        if not items:
+            st.html(f"<b style='color:{TEAL}'>✓ Needs Attention: no open red flags, weight alerts or "
+                    f"silent drop-offs.</b>")
+            return
+        n_pat = len({i["pid"] for i in items})
+        st.html(
+            f"<div style='display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap'>"
+            f"<div style='display:flex;align-items:center;gap:10px'>"
+            f"<span style='width:30px;height:30px;border-radius:50%;background:{RED_TINT};color:{RED};display:flex;"
+            f"align-items:center;justify-content:center;font-size:.95rem'>⚠</span>"
+            f"<span style='font-size:1.2rem;font-weight:700'>Needs Attention ({n_pat} patient"
+            f"{'s' if n_pat != 1 else ''}, {len(items)} alert{'s' if len(items) != 1 else ''})</span></div>"
+            f"<div class='dt-small' style='text-align:right'>{SORT_NOTE}</div></div>")
+        per_row = 4 if len(items) % 4 == 0 else 3      # 4 cards -> one row of 4, never a lone card
         for start in range(0, len(items), per_row):
-            cols = st.columns(per_row)
+            cols = st.columns(per_row, gap="medium")
             for col, (i, item) in zip(cols, list(enumerate(items))[start:start + per_row]):
                 with col:
                     _attention_card(item, i)
@@ -244,69 +275,90 @@ def _status_tags(r, silent_days: int) -> str:
     other = int(r["open_flags"]) - int(r["open_red_flags"])
     if other > 0:
         tags.append(tag("review", f"{other} TO REVIEW"))
-    return " ".join(tags) or tag("stable")
+    return "<div style='display:flex;flex-wrap:wrap;gap:5px'>" + ("".join(tags) or tag("stable")) + "</div>"
 
 
-def cohort_table(snap: pd.DataFrame) -> str:
-    """Summary table as HTML so long cells wrap instead of being cut off."""
+COHORT_COLS = [2.1, 2.1, 2.5, 1.1, 1.6, 1.4, 2.2]
+COHORT_HEADS = ["Patient", "Regimen & cycle", "7-day peak nausea / vomiting", "7-day PRN doses",
+                "Weight Δ vs baseline", "Last report", "Status"]
+
+
+def _cohort_cells(r, ref, pts, last) -> list[str]:
+    pid = r["patient_id"]
+    ws = data.week_summary(pid)
+    when = pd.Timestamp(last.loc[pid, "submitted_at"])
+    silent = (ref - when.date()).days
+    cp = data.cycle_position(pid, ws["end"])
+    w = data.latest_weight(pid)
+    if pd.isna(r["weight_pct_change"]) or w is None:
+        weight = "<span class='dt-small'>no weight</span>"
+    else:
+        color = AMBER if r["below_weight_alert"] else "#1E293B"
+        weight = (f"<span class='dt-mono' style='color:{color};font-size:.86rem'>{r['weight_pct_change']:+.1f}%"
+                  f"</span><br><span class='dt-small'>{w['weight_kg']:.1f} kg</span>")
+        if r["below_weight_alert"]:
+            weight += f"<br><span class='dt-small' style='color:{AMBER}'><b>below alert line</b></span>"
+    prn = (f"<span class='dt-mono'>{ws['prn_total']} dose{'s' if ws['prn_total'] != 1 else ''}</span>"
+           + (f"<br><span class='dt-small'>{ws['prn_inferred']} inferred</span>" if ws["prn_inferred"] else "")
+           if ws["days_reported"] else "<span class='dt-small'>not reported</span>")
+    vom_color = RED if ws["vomiting_peak"] else "#1E293B"
+    return [
+        f"<div style='display:flex;gap:9px;align-items:center'><span class='dt-chip'>{esc(pid)}</span>"
+        f"<div style='line-height:1.3'><b>{esc(short_name(r['display_name']))}</b><br>"
+        f"<span class='dt-small'>{esc(pts.loc[pid, 'diagnosis'])}</span></div></div>",
+        f"<div style='line-height:1.35'>{esc(pts.loc[pid, 'regimen_name'])}<br>"
+        f"<span class='dt-small dt-mono'>{esc(cp['short']) if cp else ''}</span></div>",
+        f"<div class='dt-mono' style='font-size:.84rem;line-height:1.5'>Nausea {esc(ws['nausea'])}<br>"
+        f"<span style='color:{vom_color}'>Vomiting {esc(ws['vomiting'])}</span></div>"
+        f"<span class='dt-small'>reported {ws['days_reported']}/7 days</span>",
+        prn, weight,
+        f"<div style='line-height:1.35'>{when:%b %d %H:%M}<br><span class='dt-small'>{_ago(silent)}</span></div>",
+        _status_tags(r, silent),
+    ]
+
+
+def cohort_table(snap: pd.DataFrame) -> None:
+    """Patient summary as a grid of rows; clicking anywhere on a row opens the Deep-Dive."""
     ref = data.as_of()
     pts = data.patients().set_index("patient_id")
     last = data.last_reports().set_index("patient_id")
-    th = ("text-align:left;padding:8px 10px;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;"
-          "opacity:.7;border-bottom:1px solid rgba(120,120,120,.35);vertical-align:bottom")
-    td = "padding:10px;vertical-align:top;border-bottom:1px solid rgba(120,120,120,.18);white-space:normal"
-    heads = ["Patient", "Regimen &amp; cycle", "7-day peak nausea / vomiting", "7-day PRN doses",
-             "Weight vs baseline", "Last report", "Status"]
-    rows = []
-    for _, r in snap.iterrows():
-        pid = r["patient_id"]
-        ws = data.week_summary(pid)
-        when = pd.Timestamp(last.loc[pid, "submitted_at"])
-        silent = (ref - when.date()).days
-        cp = data.cycle_position(pid, ws["end"])
-        if pd.isna(r["weight_pct_change"]):
-            weight = "no weight"
-        else:
-            weight = f"{r['weight_pct_change']:+.1f}%"
-            if r["below_weight_alert"]:
-                weight += "<br><small style='color:#B42318'><b>below alert line</b></small>"
-        prn = (f"{ws['prn_total']}" + (f"<br><small>{ws['prn_inferred']} inferred</small>" if ws["prn_inferred"] else "")
-               if ws["days_reported"] else "not reported")
-        cells = [
-            f"<b>{esc(pid)}</b> · {esc(short_name(r['display_name']))}",
-            f"{esc(pts.loc[pid, 'regimen_name'])}<br><small style='opacity:.75'>{esc(cp['short']) if cp else ''} "
-            f"as of {ws['end']:%b %d}</small>",
-            f"Nausea: {esc(ws['nausea'])}<br>Vomiting: {esc(ws['vomiting'])}"
-            f"<br><small style='opacity:.75'>reported {ws['days_reported']}/7 days</small>",
-            prn, weight,
-            f"{when:%b %d %H:%M}<br><small style='opacity:.75'>{_ago(silent)}</small>",
-            _status_tags(r, silent),
-        ]
-        rows.append("<tr>" + "".join(f"<td style='{td}'>{c}</td>" for c in cells) + "</tr>")
-    return (f"<div style='overflow-x:auto'><table style='width:100%;border-collapse:collapse;font-size:.9rem'>"
-            f"<thead><tr>{''.join(f'<th style={chr(39)}{th}{chr(39)}>{h}</th>' for h in heads)}</tr></thead>"
-            f"<tbody>{''.join(rows)}</tbody></table></div>")
+    ids = sorted(snap["patient_id"])
+    with st.container(key="card_cohort", gap="small"):
+        st.html(
+            f"<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:16px'>"
+            f"<div><div style='font-size:1.2rem;font-weight:700'>Active Cohort Summary "
+            f"({esc(ids[0])}–{esc(ids[-1])})</div>"
+            f"<div class='dt-small' style='font-size:.88rem'>Click any patient row to open symptom trends and the "
+            f"patient's own words</div></div>"
+            f"<span class='dt-chip' style='font-family:inherit;padding:3px 12px'>{len(ids)} enrolled patients</span>"
+            f"</div>")
+        with st.container(key="cohorthead"):
+            for col, h in zip(st.columns(COHORT_COLS, vertical_alignment="bottom"), COHORT_HEADS):
+                col.html(f"<div class='dt-th'>{esc(h)}</div>")
+        for _, r in snap.iterrows():
+            pid = r["patient_id"]
+            with st.container(key=f"cohortrow-{pid}"):
+                for col, cell in zip(st.columns(COHORT_COLS, vertical_alignment="center"),
+                                     _cohort_cells(r, ref, pts, last)):
+                    col.html(cell)
+                if st.button(f"Open {pid}", key=f"row_{pid}", help=f"Open {pid} in Patient Deep-Dive"):
+                    _go_deepdive(pid)
 
 
 def page_overview() -> None:
-    if not header("Patients — pre-visit overview"):
+    if not page_head("Outpatient CINV Panel Triage", "Outpatient Oncology Triage Board"):
         return
     snap = data.snapshot()
     ref = data.as_of()
+    n_reg = data.patients()["regimen_name"].nunique()
+    subtitle(f"{len(snap)} active patients · {n_reg} chemotherapy / chemo-RT regimens · {_as_of_text()}")
     needs_attention(snap)
-
-    st.subheader(f"Active cohort ({len(snap)} patients)")
-    st.markdown(cohort_table(snap), unsafe_allow_html=True)
+    cohort_table(snap)
     st.caption(f"7-day columns cover {ref - pd.Timedelta(days=6):%b %d}–{ref:%b %d} (as-of date = last day in the "
                "dataset), the same window for every patient. “reported none” = the patient said 0; "
                "“not reported” = no report about it (unknown, not 0) — same convention as the trend chart. "
                "Vomiting peaks are lower bounds for vague counts. Red flags are prominence rules for review, "
                "not diagnoses.")
-    names = dict(zip(snap["patient_id"], snap["display_name"].map(short_name)))
-    pick = st.pills("Open a patient in Patient Deep-Dive", list(snap["patient_id"]), key="ov_pick",
-                    format_func=lambda p: f"{p} · {names[p]}")
-    if pick:
-        _go_deepdive(pick)
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +369,9 @@ def patient_pills() -> str:
     pts = data.patients()
     ids = list(pts["patient_id"])
     names = dict(zip(pts["patient_id"], pts["display_name"].map(short_name)))
-    red = set(data.review_queue().query("flag_type == 'red_flag'")["patient_id"])
+    q = data.review_queue()
+    red = set(q.query("flag_type == 'red_flag'")["patient_id"])
+    warn = set(data.snapshot().query("below_weight_alert == 1")["patient_id"])
     if st.session_state.get("pid") not in ids:
         st.session_state["pid"] = ids[0]
     if st.session_state.get("pid_pick") != st.session_state["pid"]:
@@ -327,18 +381,40 @@ def patient_pills() -> str:
         if st.session_state.get("pid_pick"):
             st.session_state["pid"] = st.session_state["pid_pick"]
 
-    st.pills("Patient", ids, key="pid_pick", on_change=changed,
-             format_func=lambda i: f"{'🔴 ' if i in red else ''}{i} · {names[i]}")
+    def fmt(i: str) -> str:
+        dot = ":red[●]" if i in red else (":orange[●]" if i in warn else ":green[●]")
+        return f"{dot} {i} · {names[i].split()[0]}"
+
+    st.html("<div class='dt-label' style='text-align:right'>Select patient</div>")
+    with st.container(horizontal=True, horizontal_alignment="right"):
+        st.pills("Patient", ids, key="pid_pick", on_change=changed, format_func=fmt,
+                 label_visibility="collapsed")
     return st.session_state["pid"]
 
 
-def _kpi(col, label: str, value: str, sub: str, alert: bool = False) -> None:
-    color = "#B42318" if alert else "#0F766E"
-    with col.container(border=True, height="stretch"):
-        st.markdown(f"<div style='font-size:.85rem;opacity:.75'>{esc(label)}</div>"
-                    f"<div style='font-size:1.25rem;font-weight:700;color:{color};margin:.2em 0;line-height:1.3'>"
-                    f"{value}</div><div style='font-size:.82rem;opacity:.8'>{sub}</div>",
-                    unsafe_allow_html=True)
+def _kpi(label: str, value: str, sub: str, color: str = TEAL) -> str:
+    return (f"<div class='dt-kpi'><div class='l'>{esc(label)}</div>"
+            f"<div class='v' style='color:{color}'>{value}</div><div class='s'>{sub}</div></div>")
+
+
+def _compact_week(ws: dict) -> str:
+    """Short headline for the KPI card, e.g. 'Mild (1/4) · 0 vomits' (full wording goes below it)."""
+    m = re.match(r"(\w[\w ]*?) \((\d)/4\)", ws["nausea"])
+    if m:
+        nausea = f"{m.group(1).capitalize()} ({m.group(2)}/4)"
+    elif ws["nausea"].startswith("0/4"):
+        nausea = "None (0/4)"
+    else:
+        nausea = "Nausea n/r" if ws["nausea"] == "not reported" else "Nausea ?"
+    vp = ws["vomiting_peak"]
+    if ws["vomiting"] == "not reported":
+        vomit = "vomiting n/r"
+    elif vp is None:
+        vomit = "vomiting, count ?"
+    else:
+        ge = "≥" if "≥" in ws["vomiting"] else ""
+        vomit = f"{ge}{vp} vomit{'s' if vp != 1 else ''}" + ("/day peak" if vp else "")
+    return f"{nausea} · {vomit}"
 
 
 def kpi_strip(pid: str, p: pd.Series) -> None:
@@ -346,47 +422,60 @@ def kpi_strip(pid: str, p: pd.Series) -> None:
     cp = data.cycle_position(pid, end)
     ws = data.week_summary(pid, end)
     w = data.latest_weight(pid)
-    c = st.columns(4)
+    cards = []
     if cp:
-        _kpi(c[0], "Current cycle & phase", f"Cycle {cp['cycle']} · Day {cp['day']}",
-             f"{esc(cp['phase_text'])}<br>as of {end:%b %d}", alert=cp["phase"] is not None)
+        cards.append(_kpi("Current cycle & phase", f"Cycle {cp['cycle']} · Day {cp['day']}",
+                          f"{esc(cp['phase_text'])}<br>as of {end:%b %d}", TEAL_DARK))
     else:
-        _kpi(c[0], "Current cycle & phase", "Before cycle 1", f"as of {end:%b %d}")
+        cards.append(_kpi("Current cycle & phase", "Before cycle 1", f"as of {end:%b %d}", TEAL_DARK))
     peak = []
     if ws["nausea_peak_day"]:
         peak.append(f"nausea peak {ws['nausea_peak_day']:%b %d}")
     if ws["vomiting_peak_day"]:
         peak.append(f"vomiting peak {ws['vomiting_peak_day']:%b %d}")
-    _kpi(c[1], "7-day peak nausea & vomiting",
-         f"Nausea {esc(ws['nausea'])}<br>Vomiting {esc(ws['vomiting'])}",
-         f"{ws['start']:%b %d}–{ws['end']:%b %d} · reported {ws['days_reported']}/7 days"
-         + (f"<br>{' · '.join(peak)}" if peak else ""),
-         alert=bool(ws["vomiting_peak"]) or "severe" in ws["nausea"])
-    _kpi(c[2], "7-day PRN rescue use", f"{ws['prn_total']} dose{'s' if ws['prn_total'] != 1 else ''} taken",
-         f"{ws['prn_stated']} patient-stated (drug named) · {ws['prn_inferred']} inferred from the active "
-         f"PRN order (questionnaire count)")
+    alert = bool(ws["vomiting_peak"]) or "severe" in ws["nausea"]
+    cards.append(_kpi("7-day peak nausea & vomiting", esc(_compact_week(ws)),
+                      f"Nausea: {esc(ws['nausea'])} · vomiting: {esc(ws['vomiting'])}<br>"
+                      f"{ws['start']:%b %d}–{ws['end']:%b %d} · reported {ws['days_reported']}/7 days"
+                      + (f"<br>{' · '.join(peak)}" if peak else ""), RED if alert else TEAL))
+    cards.append(_kpi("7-day PRN rescue use", f"{ws['prn_total']} dose{'s' if ws['prn_total'] != 1 else ''} taken",
+                      f"{ws['prn_stated']} patient-stated (drug named) · {ws['prn_inferred']} inferred from the "
+                      f"active PRN order (questionnaire count)"))
     if w is None:
-        _kpi(c[3], "Weight vs alert threshold", "no weight", "")
+        cards.append(_kpi("Weight vs alert threshold", "no weight", ""))
     else:
         below = bool(w["below_alert_line"])
         gap = w["weight_kg"] - w["alert_line_kg"]
         src = "clinic" if w["source"] == "clinic" else "patient-reported"
-        _kpi(c[3], "Weight vs alert threshold", f"{w['pct_change']:+.1f}% ({w['weight_kg']:.1f} kg)",
-             ("<b>at/below</b> " if below else f"{gap:.1f} kg above ") +
-             f"alert line {w['alert_line_kg']:.1f} kg (−{p['weight_alert_pct']:g}%, practice-configurable)"
-             f"<br>{src}, {pd.Timestamp(w['measured_date']):%b %d}", alert=below)
+        cards.append(_kpi("Weight vs alert threshold", f"{w['pct_change']:+.1f}% ({w['weight_kg']:.1f} kg)",
+                          ("<b>at/below</b> " if below else f"{gap:.1f} kg above ")
+                          + f"alert line {w['alert_line_kg']:.1f} kg (−{p['weight_alert_pct']:g}%, "
+                            f"practice-configurable)<br>{src}, {pd.Timestamp(w['measured_date']):%b %d}",
+                          AMBER if below else "#1E293B"))
+    st.html(f"<div class='dt-kpis'>{''.join(cards)}</div>")
+
+
+def _fmt_delta(ch: dict) -> str:
+    b, a = ch["before"], ch["after"]
+
+    def side(x):
+        n = "—" if x["nausea"] is None else f"{x['nausea']}/4"
+        v = "—" if x["vomit"] is None else f"{x['vomit']}"
+        return f"{n} nausea, {v} vomits/day"
+
+    return f"Before {side(b)} → After {side(a)}"
 
 
 def regimen_change_panel(pid: str) -> None:
     for ch in data.regimen_delta(pid):
         b, a = ch["before"], ch["after"]
-        with st.container(border=True):
-            st.markdown(f"**▍Regimen change {ch['date']:%b %d}: + {ch['med']} {ch['dose']} {ch['frequency']}** "
+        with st.container(key=f"card_change_{ch['date']:%Y%m%d}"):
+            st.markdown(f"**Regimen change {ch['date']:%b %d}: + {ch['med']} {ch['dose']} {ch['frequency']}** "
                         f"— {ch['reason']}")
             cols = st.columns(3)
-            for col, label, key, unit in ((cols[0], "Mean worst nausea (0–4)", "nausea", ""),
-                                          (cols[1], "Vomiting episodes per reported day", "vomit", ""),
-                                          (cols[2], "PRN doses per reported day", "prn", "")):
+            for col, label, key in ((cols[0], "Mean worst nausea (0–4)", "nausea"),
+                                    (cols[1], "Vomiting episodes per reported day", "vomit"),
+                                    (cols[2], "PRN doses per reported day", "prn")):
                 if a[key] is None or b[key] is None:
                     col.metric(label, "—", border=True)
                 else:
@@ -401,7 +490,8 @@ def review_drawer(pid: str) -> None:
     q = data.review_queue()
     q = q[q["patient_id"] == pid]
     urgent = (q["severity"] == "urgent").any()
-    with st.expander(f"🩺 Open review flags ({len(q)}) — nurse reconciliation", expanded=bool(urgent)):
+    with st.expander(f"Open review flags ({len(q)}) — nurse reconciliation", expanded=bool(urgent),
+                     icon=":material/fact_check:"):
         if q.empty:
             st.caption("No open review flags for this patient.")
         for _, f in q.iterrows():
@@ -413,55 +503,85 @@ def review_drawer(pid: str) -> None:
                 _flag_actions(int(f["flag_id"]), "dd")
 
 
-LEGEND = ("How to read: grey shading = no report about that symptom that day (unknown, not 0) · short orange dash "
-          "at 0 = patient reported 0 vomiting episodes · whisker on a bar = vague count range (\"a few times\" = 2–4) "
-          "· ▲≥ = at least this many · hollow circle = nausea present but intensity not stated · orange ring = "
-          "conflicting or implausible reports to review · dotted line = chemo infusion · violet line = regimen "
-          "change · square = clinic weight, circle = patient-reported. Hover any point for the patient's own words "
-          "and any conflict / uncertainty flags.")
+LEGEND = ("How to read: teal bars = worst nausea that day (darker = worse) · red line = vomiting episodes "
+          "(right axis; \"2-4v\" = vague count range, \"≥3v\" = at least) · green dot at 0 = patient reported 0 "
+          "vomiting · hatched NO LOG = no nausea or vomiting report that day (unknown, not 0); a missing point on "
+          "the red line = vomiting not mentioned that day · hollow circle = nausea present, intensity not stated · "
+          "grey ring = conflicting or implausible reports to review · dotted line = chemo infusion · dashed teal "
+          "line = regimen change · weight: square = clinic, circle = patient-reported. Hover any point for the "
+          "patient's own words and any conflict / uncertainty flags.")
 
 
 def page_deepdive() -> None:
-    if not header("Patient Deep-Dive"):
+    msg = data.db_ready()
+    if msg:
+        st.title("Patient Deep-Dive")
+        st.error(msg)
         return
-    pid = patient_pills()
+    left, right = st.columns([1, 1.25], vertical_alignment="bottom")
+    with right:
+        pid = patient_pills()
     p = data.patients().set_index("patient_id").loc[pid]
-    st.caption(f"**{pid} · {short_name(p['display_name'])}** · {p['diagnosis']} · {p['regimen_name']} · emetogenic "
-               f"risk of regimen: {p['emetogenic_risk']} · enrolled {p['enrolled_at']}")
+    reds = data.open_flags(pid).query("flag_type == 'red_flag'")
+    below = bool(data.snapshot().set_index("patient_id").loc[pid, "below_weight_alert"])
+    badges = (" :red-badge[RED FLAG · OPEN]" if len(reds) else "") + (" :orange-badge[WEIGHT ALERT]" if below else "")
+    with left:
+        b, meta = st.columns([1, 4], vertical_alignment="center", gap="small")
+        if b.button("← Back", key="dd_back", type="tertiary"):
+            _go("overview")
+        meta.html(f"<div class='dt-mono dt-small' style='white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>"
+                  f"{esc(p['regimen_name'])} · {esc(p['diagnosis'])}</div>")
+        st.title(f"{pid} · {short_name(p['display_name'])}{badges}")
+    subtitle(f"Emetogenic risk of regimen: {esc(p['emetogenic_risk'])} · enrolled {esc(p['enrolled_at'])} · "
+             f"{_as_of_text()}")
 
-    for _, f in data.open_flags(pid).query("flag_type == 'red_flag'").iterrows():
-        st.error(f"🔴 **Red flag (open)** — {f['description']}  ·  report {f['report_id']}, "
-                 f"{f['submitted_at'].replace('T', ' ')[:16]}")
+    for _, f in reds.iterrows():
+        st.html(f"<div class='dt-alert'><b>Red flag (open)</b> — {esc(f['description'])} · report "
+                f"{esc(f['report_id'])}, {esc(f['submitted_at'].replace('T', ' ')[:16])}</div>")
 
     kpi_strip(pid, p)
 
-    view = st.segmented_control("View", ["Timeline", "Cycle-over-Cycle"], default="Timeline", key="dd_view")
-    view = view or "Timeline"
     ev = data.day_evidence(pid)
-    regimen_change_panel(pid)
-    if view == "Timeline":
-        fig = trend_figure(data.daily(pid), data.prn(pid), data.weights(pid), data.chemo(pid),
-                           data.med_changes(pid), data.flagged_days(pid), p["enrolled_at"], data.as_of(), ev=ev)
-        st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
-        st.caption(LEGEND + " PRN doses from questionnaires are attributed to the active PRN order (inferred, not "
-                   "stated by the patient); days with several active PRN orders stay unattributed and are flagged.")
-    else:
-        ch = data.chemo(pid)
-        gaps = ch["d"].diff().dt.days.dropna()
-        cycle_len = int(gaps.min()) if len(gaps) else 21
-        st.caption("Each chemotherapy cycle overlaid by day of cycle (day 1 = infusion day). Shaded bands: acute "
-                   "(~first 24 h) and delayed (~24–120 h) phases, commonly used reference definitions applied at day "
-                   "granularity. Gaps = no report that day (unknown, not 0). Hover for the patient's words.")
-        fig = cycle_figure(data.daily(pid), ch, data.med_changes(pid), cycle_len, ev=ev)
-        st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
+    changes = data.regimen_delta(pid)
+    with st.container(key="card_chart"):
+        t, ctl = st.columns([1.6, 1], vertical_alignment="top")
+        t.html("<div style='font-size:1.15rem;font-weight:700'>Longitudinal CINV Trajectory &amp; Provenance</div>"
+               "<div class='dt-small' style='font-size:.88rem'>Hover or tap any day to see the patient's own words, "
+               "PRN doses and conflict flags</div>")
+        with ctl:
+            with st.container(horizontal=True, horizontal_alignment="right"):
+                view = st.segmented_control("View", ["Timeline", "Cycle-over-Cycle"], default="Timeline",
+                                            key="dd_view", label_visibility="collapsed")
+            if changes:
+                st.html("<div style='text-align:right'>" + "".join(
+                    f"<span class='dt-pill' title='Acute + delayed phase days; observational'>"
+                    f"{esc(_fmt_delta(c))}</span>" for c in changes) + "</div>")
+        view = view or "Timeline"
+        if view == "Timeline":
+            fig = trend_figure(data.daily(pid), data.prn(pid), data.weights(pid), data.chemo(pid),
+                               data.med_changes(pid), data.flagged_days(pid), p["enrolled_at"], data.as_of(), ev=ev)
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
+            st.caption(LEGEND + " PRN doses from questionnaires are attributed to the active PRN order (inferred, "
+                       "not stated by the patient); days with several active PRN orders stay unattributed and are "
+                       "flagged.")
+        else:
+            ch = data.chemo(pid)
+            gaps = ch["d"].diff().dt.days.dropna()
+            cycle_len = int(gaps.min()) if len(gaps) else 21
+            st.caption("Each chemotherapy cycle overlaid by day of cycle (day 1 = infusion day). Shaded bands: acute "
+                       "(~first 24 h) and delayed (~24–120 h) phases, commonly used reference definitions applied at "
+                       "day granularity. Gaps = no report that day (unknown, not 0). Hover for the patient's words.")
+            fig = cycle_figure(data.daily(pid), ch, data.med_changes(pid), cycle_len, ev=ev)
+            st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
 
+    regimen_change_panel(pid)
     review_drawer(pid)
-    with st.expander("Medication orders"):
+    with st.expander("Medication orders", icon=":material/medication:"):
         st.dataframe(data.orders(pid), hide_index=True, width="stretch")
 
 
 # ---------------------------------------------------------------------------
-# 3. Inspector: report vs parsed result + review queue
+# 3. Parser & Eval Inspector: report vs parsed result, review queue
 # ---------------------------------------------------------------------------
 
 def _norm(s: str) -> str:
@@ -515,13 +635,9 @@ def _events_view(ev: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-def page_report() -> None:
-    if not header("Patient's words vs parsed result",
-                  "Pick a report: the left side shows exactly what the patient wrote (highlighted = text the "
-                  "parser used as evidence); the right side shows the structured rows and any review flags."):
-        return
-
-    queue = data.review_queue()
+def _words_tab() -> None:
+    st.caption("Pick a report: the left side shows exactly what the patient wrote (highlighted = text the "
+               "parser used as evidence); the right side shows the structured rows and any review flags.")
     pts = ["All patients"] + list(data.patients()["patient_id"])
     c1, c2 = st.columns([3, 2], vertical_alignment="bottom")
     who = c1.pills("Patient", pts, default="All patients", key="rep_pid") or "All patients"
@@ -553,9 +669,11 @@ def page_report() -> None:
             st.caption(f"Report {wanted} is hidden by the current filter.")
         _report_detail(reps.set_index("report_id").loc[rid], rid)
 
-    st.divider()
-    st.subheader("Review queue")
-    st.caption("All open review items, urgent first. Select a row to load its report above.")
+
+def _queue_tab() -> None:
+    queue = data.review_queue()
+    st.caption("All open review items, urgent first. Select a row to load its report in the "
+               "“Words vs parsed data” tab.")
     qv = pd.DataFrame({
         "": queue["severity"].map(SEVERITY_ICON),
         "type": queue["flag_type"].map(FLAG_LABELS),
@@ -646,11 +764,21 @@ def _md_sections(path) -> dict[str, str]:
     return {p.split("\n", 1)[0].strip(): p.split("\n", 1)[1] if "\n" in p else "" for p in parts[1:]}
 
 
-def page_method() -> None:
-    if not header("Method & evaluation"):
-        return
-    info = data.parser_info()
+def blind_headline() -> str | None:
+    """'24 / 88' style count for LLM prompt v2 'wrong & unflagged' on the blind messy set,
+    read from the published eval/results.md (None if the file or row is missing)."""
+    sec = _md_sections(data.EVAL_DIR / "results.md").get("Blind messy set", "")
+    for line in sec.splitlines():
+        if line.startswith("| Wrong & unflagged"):
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            m = re.search(r"\((\d+)/(\d+)\)", cells[-1])
+            if m:
+                return f"{m.group(1)} / {m.group(2)}"
+    return None
 
+
+def _method_tab() -> None:
+    info = data.parser_info()
     st.subheader("Where the dashboard data comes from")
     st.markdown(f"- Free-text parser for the data shown: **{info['label']}**\n"
                 "- Questionnaire answers: deterministic mapping, 0–10 scores stored unchanged. PRN dose counts "
@@ -683,8 +811,10 @@ def page_method() -> None:
         "4. **Failure handling**: wrong model / auth / quota stops the run; a single failed report falls back to "
         "keyword rules and is flagged.")
 
-    st.subheader("Parser evaluation on the gold set (30 reports)")
+
+def _eval_tab() -> None:
     v2 = _md_sections(data.EVAL_DIR / "results.md")
+    st.subheader("Parser evaluation on the gold set (30 reports)")
     ft = next((k for k in v2 if k.startswith("Free-text")), None)
     if ft:
         st.markdown(f"**{ft}** — rule baseline vs LLM prompt v1 vs v2")
@@ -697,10 +827,10 @@ def page_method() -> None:
         "given as context so corrections can be resolved.  \n"
         "**Read with care:** 23 free-text reports, so one report moves a metric by several points; the keyword "
         "baseline is optimistic because routine reports come from templates and the rules were written after "
-        "seeing them. A held-out set in varied wording is the fair test.")
+        "seeing them. The blind messy set below is the fairer test.")
     err_v2 = next((k for k in v2 if k.startswith("Errors - LLM prompt v2")), None)
     if err_v2:
-        with st.expander(f"LLM prompt v2 — {err_v2.split('(')[-1].rstrip(')')}", expanded=True):
+        with st.expander(f"LLM prompt v2 — {err_v2.split('(')[-1].rstrip(')')}"):
             st.markdown(v2[err_v2])
     err_v1 = next((k for k in v2 if k.startswith("Errors - LLM prompt v1")), None)
     if err_v1:
@@ -710,3 +840,51 @@ def page_method() -> None:
     if q:
         with st.expander("Questionnaire reports (deterministic in all columns)"):
             st.markdown(v2[q])
+    blind = v2.get("Blind messy set")
+    if blind:
+        st.subheader("Blind messy set (88 reports, 22 categories × 4)")
+        summary, _, rest = blind.partition("### ")
+        st.markdown(summary)
+        if rest:
+            with st.expander("By category and every wrong & unflagged report"):
+                st.markdown("### " + rest)
+
+
+def page_inspector() -> None:
+    msg = data.db_ready()
+    if msg:
+        st.title("Parser & Eval Inspector")
+        st.error(msg)
+        return
+    info = data.parser_info()
+    run = f" · parsed {info['run_at'].replace('T', ' ')[:16]}" if info["run_at"] else ""
+    with st.container(key="card_dev"):
+        left, right = st.columns([3, 1], vertical_alignment="center")
+        with left:
+            st.html(f"{_tag('DEVELOPER AUDIT MODE', AMBER, '#FEF3C7', AMBER_LINE)}"
+                    f"<span class='dt-mono' style='color:{AMBER};font-size:.85rem;margin-left:10px'>"
+                    f"Pydantic schema + SQLite provenance</span>")
+            st.title("Parser & Eval Inspector")
+            st.html(f"<div class='dt-sub' style='margin-top:-.5rem'>Developer &amp; evaluator audit view — hidden "
+                    f"from the default clinical workflow.</div>"
+                    f"<div class='dt-small' style='margin-top:.4rem'>Structured data on the dashboard was extracted "
+                    f"by: <b>{esc(info['label'])}</b>{esc(run)} · {_as_of_text()}</div>")
+        with right:
+            if st.button("Return to Clinical View", key="insp_back", width="stretch"):
+                _go("overview")
+            head = blind_headline()
+            if head:
+                st.html(f"<div style='text-align:center;margin-top:6px'><span class='dt-chip' "
+                        f"style='font-size:.78rem'>{head} wrong &amp; unflagged</span><div class='dt-small' "
+                        f"style='margin-top:3px'>LLM prompt v2 · blind messy set</div></div>")
+
+    t_words, t_queue, t_method, t_eval = st.tabs(["Words vs parsed data", "Review queue", "Method",
+                                                  "Evaluation"])
+    with t_words:
+        _words_tab()
+    with t_queue:
+        _queue_tab()
+    with t_method:
+        _method_tab()
+    with t_eval:
+        _eval_tab()
