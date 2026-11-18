@@ -1,20 +1,228 @@
 # CINV patient-reported data: store, manage and chart
 
-Track B prototype for the Dr.Tracker data-intelligence assessment. Patients on chemotherapy report nausea and
-vomiting (CINV) in their own words or through a short questionnaire. The pipeline turns each report into structured
-data that can be traced back to the original text, and a Streamlit dashboard shows a provider what needs attention
-in about 30 seconds.
+Track B prototype for the Dr.Tracker data-intelligence assessment.
 
-> **Synthetic data only — not for clinical use.** All patients are fictional, and nothing here is a diagnosis, a
+> **Synthetic data only — not for clinical use.** All patients are fictional. Nothing here is a diagnosis, a
 > clinical grade or clinical advice.
 
-![Overview page](docs/screenshots/overview.png)
+---
 
-## Run it
+## 1. Project goal
 
-Requires **Python 3.11 or newer** (built on 3.13). **No API key is needed**: the dashboard reads the committed,
-pre-built `data/cinv_demo.db`, and the launcher never calls the API. The first run creates `.venv`, installs
-`requirements.txt` and opens the dashboard at http://localhost:8501.
+### The problem
+
+Patients on chemotherapy report nausea and vomiting (CINV) between visits, in their own words ("threw up a few
+times after lunch") or through a short questionnaire. Providers do not have time to read every message before a
+visit.
+
+### The goal
+
+Turn each report into **structured data that can be traced back to the patient's own words**, and show it so a
+provider can see **in about 30 seconds who needs attention**, how this cycle compares with the last one, and
+whether a medication change helped.
+
+---
+
+## 2. Data design
+
+### Core principles
+
+- **The patient's words are never changed.** `raw_reports` is immutable (database triggers block edits; only
+  `parse_status` can change). Parsers can be re-run and audited at any time.
+- **Event (long) model.** One report becomes many symptom, medication and weight events. A new symptom adds rows,
+  not columns.
+- **Unknown stays empty (NULL).** "Not sure if it's nausea" → `presence = 'uncertain'`, severity NULL. "Reported 0"
+  and "not reported" stay different all the way to the chart.
+- **Counts are ranges.** "Twice" = 2–2, "a few" = 2–4, "kept throwing up" = at least 1, upper bound NULL.
+- **Conflicts are kept and flagged, not silently resolved.** Both versions are stored with a review flag. A
+  correction marks the old row `superseded` (never deleted) and links the new one to it.
+- **Every row is traceable.** Each structured row stores an `evidence_span` that must appear **verbatim** in the
+  report, or the row is dropped and flagged.
+- **One time anchor.** `chemo_administrations` gives every symptom a cycle day and a phase (acute = day 1,
+  delayed = days 2–5).
+
+### Main tables (`schema.sql`)
+
+| Table | Purpose |
+|---|---|
+| `patients`, `chemo_administrations` | Who, and when each infusion happened (the time anchor) |
+| `medications`, `medication_orders` | Drug dictionary; a change closes one order and opens a new one, so before/after stays comparable |
+| `raw_reports` | Immutable patient submissions (free text or questionnaire) |
+| `extraction_runs` | Which parser and prompt version produced each set of rows |
+| `symptom_events`, `medication_intake_events`, `weight_measurements` | The structured events, each with its `evidence_span` |
+| `review_flags`, `flag_events` | Open issues for a nurse (conflict, red flag, low confidence, …) and their history |
+| Views `v_daily_symptom_summary`, `v_daily_medication_intake`, `v_weight_trend` | One documented chart rule applied everywhere (active events only; conflicting counts → the larger value, day marked) |
+
+---
+
+## 3. Streamlit dashboard
+
+Two clinical pages, plus one developer page behind a sidebar toggle (off by default).
+
+### Overview — "Who needs attention today?"
+
+Red flags, weight below the alert line, and silent drop-off (≥ 3 days without a report) at the top; a cohort
+table below. Every page uses one **as-of date**, so a patient who stopped reporting shows gaps, not an older,
+healthier-looking week.
+
+![Overview](docs/screenshots/overview.png)
+
+### Patient Deep-Dive — "What do I need to know before I walk in?"
+
+- A 4-card pre-visit header.
+- Timeline vs. Cycle-over-Cycle chart: nausea (0–4) and vomiting counts on one chart, PRN doses and weight below on
+  the same date axis.
+- A regimen-change marker with an observational before/after panel (no causal claim).
+- **Nurse Review Flags**: one card per open flag, with the patient's words and a "Mark Reconciled" button.
+- Missing ≠ zero: hatched "NO LOG" means no report; a green dot at 0 means the patient reported no vomiting.
+  Tooltips show the verbatim `evidence_span`.
+
+![Patient Deep-Dive](docs/screenshots/patient_deep_dive.png)
+
+### Developer mode — Parser & Eval Inspector
+
+For the team, not the provider: edge cases with their structured output and a "Schema valid · Evidence verified"
+badge (shown only when the stored rows re-load into the Pydantic models and every evidence span is found), all
+reports, the review queue, evaluation results and the method.
+
+![Parser & Eval Inspector](docs/screenshots/parser_inspector.png)
+
+---
+
+## 4. AI usage and human-in-the-loop decisions
+
+### Schema design
+
+- **AI:** Claude (coding assistant) drafted the SQL, views and queries.
+- **Human:** the author set the principles above (immutable text, NULL for unknown, ranges, keep-and-flag
+  conflicts, no CTCAE grades stored because they are clinician-assigned) and checked every table against real
+  edge cases.
+
+### Parser
+
+- **LLM** (Groq `openai/gpt-oss-120b`, JSON mode, temperature 0, prompt v2) **understands the language**: which
+  symptoms, present / absent / uncertain, counts, severity words, time words, medication *mentions*, "is this a
+  correction?".
+- **Code does everything checkable**: dates (the LLM returns only a relative day offset), mapping drug mentions to
+  the dictionary, the verbatim evidence check, the plausibility guard, and **every review flag**.
+- Questionnaires are parsed fully deterministically. A keyword-rule parser is both the baseline and the per-report
+  fallback.
+
+### Synthetic dataset
+
+- `generate_data.py` (written with Claude, fixed seed) builds **5 fictional head-and-neck cancer patients × 6
+  weeks**: 12 infusions, 10 medication orders, **184 reports** (129 free text, 55 questionnaires).
+- A hidden "truth" curve per patient and day follows the commonly described CINV pattern (peak around days 2–3
+  after infusion, scaled by the regimen's emetogenic risk). Routine reports are rendered from that truth by
+  templates.
+- **15 hand-written tricky cases (18 reports)** cover vague counts, conflicts, corrections, a vomited-up dose,
+  questionnaire vs. comment disagreement, and more.
+
+### Gold set (30 reports)
+
+- 12 routine reports: labels come straight from the generator.
+- 18 tricky reports: **AI drafted the labels, the author reviewed each one**: **16 agreed, 2 revised**
+  (`data/gold_review.csv`). Both revisions were questionnaire PRN drugs labelled as patient-stated when they were
+  inferred, which led to an explicit *inferred vs. stated* field.
+
+### Blind messy set (88 reports)
+
+- 22 failure categories × 4 (typos, slang, hedging, second-hand accounts, emoji, non-English, distress, …).
+- Text written by a **different model** (Groq `qwen/qwen3.8-27b`) so the parser's model never writes its own
+  test set; label drafts by Claude.
+- **The author reviewed all 88 labels and revised 9 before any parser ran** (`data/blind_review.csv`). The prompt
+  and rules were not changed after seeing the results.
+
+### Evaluation results (rules vs. LLM prompt v2)
+
+Full tables and every error: [`eval/results.md`](eval/results.md). Raw counts, small samples, no significance
+claimed.
+
+**Gold set, free text (n = 23)**
+
+| | Rule baseline | LLM v2 |
+|---|---|---|
+| Presence · count · severity | 38/39 · 14/15 · 17/18 | 39/39 · 15/15 · 18/18 |
+| Report fully correct — tricky · routine | 11/16 · 7/7 | 13/16 · 5/7 |
+| Review-flag recall | 4/5 | 5/5 |
+| **Wrong & unflagged** | **3/23** | **3/23** |
+
+Questionnaires (n = 7): 100% on every field for both (deterministic).
+
+**Blind messy set (n = 88)**
+
+| | Rule baseline | LLM v2 |
+|---|---|---|
+| Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 |
+| Report fully correct | 35/88 | 61/88 |
+| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 |
+| Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 |
+
+**Why "wrong & unflagged" is the main safety metric:** a flagged error goes to a nurse with the patient's words
+next to it; an unflagged error looks exactly like a correct value on the chart. The LLM is clearly better, but 24
+of its 27 wrong reports are unflagged. **The flag layer, not extraction, is the weak point.**
+
+### Key judgments made by the author
+
+- **Misspelled drug names are not auto-matched.** "zofram", "compazene" → flagged `unmapped_medication`, never
+  fuzzy-matched to a drug (decided on BL20, applied to BL19 / BL63 / BL64).
+- **Implied symptoms are `uncertain`, not `present`.** "zofram helped a bit" → nausea uncertain; "can't keep food
+  down" → vomiting uncertain, no count.
+- **Self-contradicting reports get `intra_report_conflict`**, not a severity mismatch.
+- **Out-of-schema complaints must not disappear silently** (hair loss, fatigue) → flagged for review.
+- **A duplicate is flagged only when the earlier report exists**; otherwise the flag is dropped.
+- **Distress messages** ("I can't do this anymore") are out of the parser's scope but must go to human review at
+  high priority, never vanish because they contain no symptom.
+
+---
+
+## 5. Next steps
+
+### Implementation
+
+**Prompt**
+- Ask for the **full contiguous evidence phrase**, so correct rows are not dropped by the verbatim check.
+- Record **clock times the patient states** ("took it at 8", "around 2pm"), marked exact or approximate.
+
+**System**
+- **Deterministic flag layer**: uncertain presence, distress, non-English text, out-of-schema complaints.
+- **Hybrid routing**: rules for routine reports they cover with high confidence, LLM for the rest; the router's
+  acceptance rule is judged by wrong & unflagged on the blind set.
+- **Similarity check against a labelled example library**: compare each evidence span with reviewed examples (local
+  embeddings); flag disagreements, never override.
+- **PRN questionnaire by drug name** when a patient has several active PRN orders (today the dose is attributed to
+  the single active PRN order and shown as *inferred*).
+
+### Project implications
+
+**Track C (EHR delivery)**
+- Export active events as **HL7 FHIR R4 `Observation` / `QuestionnaireResponse`** resources.
+- Keep `evidence_span` as provenance so the EHR can show the patient's words.
+- Generate a **pre-visit summary** from the same views the dashboard uses.
+
+**Other specialties (e.g. dermatology, gastroenterology)**
+- One **core engine** (extraction loop, verbatim evidence check, schema retry, cache, evaluation harness).
+- One **config pack per specialty**: symptom vocabulary, units and thresholds, red-flag rules.
+- Generalize the time anchor from chemotherapy to **care-plan milestones** (infusion, taper step, lab check-in), so
+  the same window queries keep working.
+
+**Production readiness**
+- SQLite → **Postgres**; **access control and audit logs**.
+- Before any real PHI (no compliance claim made here): an agreement with the model provider or a self-hosted model,
+  data minimization and de-identification before model calls, encryption at rest and in transit, a retention
+  policy, and a privacy and security review.
+- **Version models and prompts** (already recorded per run in `extraction_runs`).
+- **Run the evaluation in CI**; block changes that raise wrong & unflagged.
+- **Monitor after launch**: flag rate and the outcomes of human review.
+- **Re-evaluate regularly** on a fresh blind set.
+
+---
+
+## 6. How to run it
+
+Requires **Python 3.11+** (built on 3.13). **No API key needed**: the dashboard reads the committed, pre-built
+`data/cinv_demo.db`, and the LLM output is cached in `data/llm_cache.json`. The first run creates `.venv`, installs
+dependencies and opens http://localhost:8501.
 
 **Windows (PowerShell)**
 
@@ -30,88 +238,13 @@ git clone https://github.com/wangyiran-233/dr-tracker-track-b.git && cd dr-track
 bash run_demo.sh        # on macOS, install Python first if needed, e.g. `brew install python@3.13`
 ```
 
-<details><summary>Tests and full rebuild (also offline)</summary>
+**Tests and full rebuild** (inside `.venv`, offline)
 
 ```bash
-python -m pip install -r requirements-dev.txt && python -m pytest       # inside .venv; no network
+python -m pip install -r requirements-dev.txt && python -m pytest
 python generate_data.py && python init_db.py --db data/cinv_demo.db
 python parse_reports.py --text-parser llm --offline --strict --db data/cinv_demo.db   # from data/llm_cache.json
-python evaluate.py --offline                                            # writes eval/results.md
+python evaluate.py --offline                                                          # writes eval/results.md
 ```
-</details>
 
-## What is in the repository
-
-| Path | Contents |
-|---|---|
-| `schema.sql`, `queries.sql`, `run_queries.py` | SQLite schema (immutable raw reports, event tables, review flags, views) and 4 provider queries |
-| `cinv/`, `parse_reports.py` | Questionnaire parser, keyword-rule baseline, Groq LLM parser, validation and the write pipeline |
-| `app.py`, `dashboard/` | Streamlit dashboard: Overview and Patient Deep-Dive, plus a developer inspector behind a sidebar toggle |
-| `generate_data.py`, `init_db.py`, `data/` | Synthetic dataset (5 patients × 6 weeks, 184 reports), gold set, blind messy set, LLM cache, demo DB |
-| `evaluate.py`, `eval/results.md` | Rule vs LLM evaluation with raw counts and every error |
-| `tests/`, `docs/` | pytest suite; [design decisions](docs/design_decisions.md) and screenshots |
-
-## Key design decisions
-
-- **Raw reports are immutable.** Triggers block edits; every structured row links to its report and the exact
-  `evidence_span` it came from, so parsers can be re-run and audited.
-- **Event (long) model.** One report → many symptom, medication and weight events; a new symptom adds rows, not columns.
-- **Unknown stays NULL.** Vague counts become ranges ("a few" = 2–4) and vague times carry a precision. "Reported 0"
-  and "not reported" are kept apart all the way to the chart.
-- **Conflicts are kept and flagged, not silently resolved.** Both versions are stored; the chart view applies one
-  documented rule (take the larger count and mark the day).
-- **The LLM reads language; code does everything checkable**: dates, drug mapping, plausibility, every review flag.
-  Every `evidence_span` must appear verbatim in the report.
-
-## Results at a glance
-
-**Gold set** — 30 reports (23 free text, 7 questionnaires), labels drafted by AI and reviewed by the author.
-Free-text results, raw counts, no significance claimed (full tables and errors: [`eval/results.md`](eval/results.md)):
-
-| Free text (n = 23) | Rule baseline | LLM prompt v2 |
-|---|---|---|
-| Presence / episode count / severity | 38/39 · 14/15 · 17/18 | 39/39 · 15/15 · 18/18 |
-| Part of day | 35/39 | 36/39 |
-| Review-flag recall · correction linked | 4/5 · 0/1 | 5/5 · 1/1 |
-| Report fully correct — tricky / routine | 11/16 · 7/7 | 13/16 · 5/7 |
-| Wrong & unflagged · wrong & flagged (reports) | 3/23 · 2/23 | 3/23 · 2/23 |
-
-Questionnaires: 100% in every field (deterministic).
-
-**Blind messy set** — 88 reports (22 failure categories × 4) written by a different model, labels drafted by AI and
-reviewed by the author before any parser ran; the prompt and rules were not changed after seeing the results. Each report is parsed on its
-own; dates are scored only for the 3 date categories, severity and medication rows are not labelled:
-
-| Blind set (n = 88) | Rule baseline | LLM prompt v2 |
-|---|---|---|
-| Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 |
-| Presence · count · date (date categories) | 66/75 · 29/38 · 6/14 | 102/111 · 46/52 · 13/17 |
-| Report fully correct | 35/88 | 61/88 |
-| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 |
-| Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 |
-
-The LLM is clearly better, but its errors are almost never flagged: 24 of its 27 wrong reports reach the chart
-unseen. Most are hedged or second-hand wording turned into a confident row (or the reverse), missed implied
-nausea, and wrong dates for cycle-day and catch-up reports. Review flags are mostly missed (11/61, red flags 4/9):
-there is no deterministic flag for uncertain presence, distress, non-English text or out-of-schema complaints.
-Per-category counts and every error: [`eval/results.md`](eval/results.md#blind-messy-set).
-
-## Where AI was used and how it was checked
-
-| Use | How it was checked |
-|---|---|
-| Free-text extraction (Groq `openai/gpt-oss-120b`, in the product) | Gold-set evaluation, schema validation, verbatim evidence check; dates, drugs and flags stay deterministic |
-| Coding assistant (Claude) for code, SQL, generator and docs | Everything run end to end, pytest suite, dashboard rendered and inspected; design choices set by the author |
-| Gold-label drafts for the 18 tricky cases (Claude) | Reviewed case by case by the author: 16 agreed, 2 revised (`data/gold_review.csv`) |
-| Blind messy set: text by a different model (Groq `qwen/qwen3.8-27b`), label drafts by Claude | All 88 labels reviewed by the author before any parser ran: 79 agreed, 9 revised (`data/blind_review.csv`) |
-
-## Limitations and next steps
-
-- **Possible prompt and schema improvements:** record clock times the patient states ("at 8", "around 2pm"),
-  and ask for the full contiguous evidence phrase, so correct rows are not dropped by the verbatim check.
-- **Hybrid routing** (rules for routine reports, LLM for complex ones) and a similarity check against a labelled
-  example library are designed but not built ([design decisions](docs/design_decisions.md)).
-- The daily max rule can under-count two real episodes reported for the same part of day; LLM confidence is not
-  calibrated; red flags are display rules, not triage.
-- Questionnaire PRN doses are attributed to the single active PRN order (shown as *inferred*); the questionnaire
-  should ask about each ordered drug by name.
+More detail: [docs/design_decisions.md](docs/design_decisions.md).
