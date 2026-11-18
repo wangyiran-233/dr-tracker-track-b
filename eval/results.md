@@ -53,7 +53,7 @@ Reports where the parser produced no usable output (scored as all-missed): Rule 
 
 ## Blind messy set
 
-88 reports (22 failure categories x 4), written by a different model than the parser's, labelled and human-reviewed before any parser ran (`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these results. Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
+88 reports (22 failure categories x 4), written by a different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran (`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these results. Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
 
 | Metric | Rule baseline | LLM prompt v2 |
 |---|---|---|

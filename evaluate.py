@@ -214,7 +214,7 @@ def _field(e: dict, k: str):
 
 
 # ---------------------------------------------------------------------------
-# Blind messy set (labels: data/blind_review.csv, human-reviewed)
+# Blind messy set (labels: data/blind_review.csv, drafted by AI and reviewed by the author)
 # ---------------------------------------------------------------------------
 
 BLIND_SET = ROOT / "data" / "messy_blind_set.json"
@@ -380,7 +380,7 @@ def blind_markdown(res: dict[str, dict], recs: dict[str, list[dict]], blind: lis
     methods = list(res)
     cats = list(dict.fromkeys(b["category"] for b in blind))
     md = [f"{len(blind)} reports ({len(cats)} failure categories x {len(blind) // len(cats)}), written by a "
-          "different model than the parser's, labelled and human-reviewed before any parser ran "
+          "different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran "
           "(`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these "
           "results. Severity and medication rows are not labelled here; dates are scored only for the 3 "
           "date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is "

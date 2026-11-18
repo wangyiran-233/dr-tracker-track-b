@@ -65,8 +65,8 @@ python evaluate.py --offline                                            # writes
 
 ## Results at a glance
 
-**Gold set** — 30 reports (23 free text, 7 questionnaires), labels human-reviewed. Free-text results, raw counts,
-no significance claimed (full tables and errors: [`eval/results.md`](eval/results.md)):
+**Gold set** — 30 reports (23 free text, 7 questionnaires), labels drafted by AI and reviewed by the author.
+Free-text results, raw counts, no significance claimed (full tables and errors: [`eval/results.md`](eval/results.md)):
 
 | Free text (n = 23) | Rule baseline | LLM prompt v2 |
 |---|---|---|
@@ -78,8 +78,8 @@ no significance claimed (full tables and errors: [`eval/results.md`](eval/result
 
 Questionnaires: 100% in every field (deterministic).
 
-**Blind messy set** — 88 reports (22 failure categories × 4) written by a different model, labels human-reviewed
-before any parser ran; the prompt and rules were not changed after seeing the results. Each report is parsed on its
+**Blind messy set** — 88 reports (22 failure categories × 4) written by a different model, labels drafted by AI and
+reviewed by the author before any parser ran; the prompt and rules were not changed after seeing the results. Each report is parsed on its
 own; dates are scored only for the 3 date categories, severity and medication rows are not labelled:
 
 | Blind set (n = 88) | Rule baseline | LLM prompt v2 |

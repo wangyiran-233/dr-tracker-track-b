@@ -71,11 +71,11 @@ single failed report falls back to rules and is flagged.
 same for both (recall 39/40). The LLM (prompt v2) is better on presence, counts and severity (39/39, 15/15, 18/18
 vs 38/39, 14/15, 17/18), on tricky reports (13/16 vs 11/16), on flag recall (5/5 vs 4/5) and on corrections
 (1/1 vs 0/1). Rules
-win on templated routine reports (7/7 vs 5/7). The samples are small, so no significance is claimed. Human review
+win on templated routine reports (7/7 vs 5/7). The samples are small, so no significance is claimed. Author review
 of the 18 AI-drafted tricky labels: **16 agreed, 2 revised**. Both revisions were questionnaire PRN drugs labelled
 as patient-stated when they were inferred, which led to the explicit *inferred vs stated* field.
 
-**Blind messy set** (88 reports, 22 failure categories × 4; labels reviewed by the author before any parser ran:
+**Blind messy set** (88 reports, 22 failure categories × 4; labels drafted by AI and reviewed by the author before any parser ran:
 79 agreed, 9 revised). Reports fully correct: LLM v2 61/88 vs rules 35/88. **Wrong and unflagged: 24/88 vs
 50/88**; wrong and flagged: 3/88 each. Review-flag recall is low for both (11/61 vs 4/61; red flags 4/9 vs 2/9).
 The prompt and rules were deliberately not tuned on these results. The main lesson is that the flag layer, not
@@ -110,6 +110,15 @@ sidebar toggle that is off by default. Design choices:
 No clinical grading (CTCAE), no real-time alerts or notifications, English only, no authentication or multi-user
 editing (SQLite), and no causal claims from before/after comparisons. Red flags are display-prominence rules, not
 triage.
+
+**Emotional distress and crisis messages.** Messages such as "I can't do this anymore", "what's the point" or only
+crying emoji contain no CINV symptom. Clinical crisis handling (risk assessment, escalation, contacting the patient)
+is **out of the parser's scope**: the parser only extracts structured symptom, medication and weight data, and it
+must not try to judge or respond to a crisis. Such a message must still never disappear just because it produces no
+symptom rows. The intended handling is to send it to **human review at high priority** (`red_flag`), so a clinician
+sees the patient's own words and follows the practice's escalation protocol. The blind set labels these reports
+this way (`distress_not_symptom`). Both parsers correctly store no symptom rows for them, but neither raises the flag
+reliably yet, so a deterministic distress flag is the first item on the flag-layer work below.
 
 ## 7. Next steps (designed, not built)
 
