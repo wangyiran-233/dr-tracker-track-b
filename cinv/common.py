@@ -135,25 +135,10 @@ def postprocess(rep: ParsedReport) -> ParsedReport:
                 e.episode_count_min, e.episode_count_max = 1, None
         if e.symptom_code not in COUNTED:
             e.episode_count_min = e.episode_count_max = None
-        if e.occurred_start and e.part_of_day == "unknown":
-            e.part_of_day = part_of_day_from_clock(e.occurred_start)
         if e.part_of_day not in ("unknown", "all_day") and e.time_precision == "day":
             e.time_precision = "part_of_day"
     for e in rep.intake_events:
-        if e.taken_at and e.part_of_day == "unknown":
-            e.part_of_day = part_of_day_from_clock(e.taken_at)
         if e.part_of_day not in ("unknown", "all_day") and e.time_precision == "day":
             e.time_precision = "part_of_day"
     return rep
 
-
-def part_of_day_from_clock(iso: str) -> str:
-    """Part of day from a clock time the PATIENT gave (never from submission time)."""
-    h = int(iso[11:13])
-    if 5 <= h < 12:
-        return "morning"
-    if 12 <= h < 17:
-        return "afternoon"
-    if 17 <= h < 22:
-        return "evening"
-    return "overnight"

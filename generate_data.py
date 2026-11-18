@@ -122,9 +122,6 @@ CONVENTIONS = {
                          "'inferred_prn_order'); with zero or several active PRN orders med is NULL and the "
                          "report gets an unmapped_medication flag. Medications named in free text have "
                          "med_source='patient_words'.",
-    "clock_time": "Stored only when the patient states a clock time or one follows arithmetically from a "
-                  "stated time ('at 8 ... 20 minutes later' -> ~08:20, approximate). Never from submission time "
-                  "or from words like 'morning'. Keys absent = no time given.",
     "day_inheritance": "A sentence with no day word takes the day of the previous sentence in the same "
                        "report; only the day is inherited, never the part of day.",
     "fluids": "kept_fluids_down: yes => unable_to_keep_fluids absent; partly => present, "
@@ -146,29 +143,22 @@ def nrs_to_level(nrs: int) -> int:
     return 4
 
 
-def _with_clock(d: dict, clock: str | None, approx: bool) -> dict:
-    """Clock keys are written only when the patient gave a time (absent = none given)."""
-    if clock:
-        d["clock_time"], d["clock_time_approximate"] = clock, approx
-    return d
-
-
 def sym(code, presence, occurred_date, part="unknown", level=None, nrs=None,
-        cmin=None, cmax=None, related_med=None, med_relation=None, clock=None, approx=False):
-    return _with_clock({
+        cmin=None, cmax=None, related_med=None, med_relation=None):
+    return {
         "symptom_code": code, "presence": presence,
         "severity_level": level, "severity_nrs": nrs,
         "episode_count_min": cmin, "episode_count_max": cmax,
         "occurred_date": occurred_date, "part_of_day": part,
         "related_med": related_med, "med_relation": med_relation,
-    }, clock, approx)
+    }
 
 
-def intake(med, status, taken_date, part="unknown", dose_count=1, source="patient_words", clock=None, approx=False):
+def intake(med, status, taken_date, part="unknown", dose_count=1, source="patient_words"):
     """source: 'patient_words' (named in free text) or 'inferred_prn_order'
     (questionnaire PRN count attributed to the single active PRN order)."""
-    return _with_clock({"med": med, "intake_status": status, "dose_count": dose_count,
-                        "taken_date": taken_date, "part_of_day": part, "med_source": source}, clock, approx)
+    return {"med": med, "intake_status": status, "dose_count": dose_count,
+            "taken_date": taken_date, "part_of_day": part, "med_source": source}
 
 
 def expected(symptoms=(), intakes=(), weights=(), flags=(), cross_flags=(), supersedes=None):
@@ -486,12 +476,11 @@ def build_special_cases() -> tuple[list[dict], dict[str, set[int]]]:
     add("S8", P3, ts(P3, 16, 19, 45), "free_text",
         "Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.",
         expected([sym("nausea", "present", P3.iso(16), "afternoon")],
-                 [intake(None, "taken", P3.iso(16), "afternoon", clock="14:00", approx=True)],
+                 [intake(None, "taken", P3.iso(16), "afternoon")],
                  flags=["unmapped_medication"]),
         ["unmapped_medication"],
         "Likely ondansetron ODT, but the parser must not guess: med NULL + flag for review. "
-        "Nausea present, no intensity given. Added after human review: 'around 2pm' -> intake ~14:00 "
-        "(approximate); the nausea has no stated start time, so none is stored.", {16})
+        "Nausea present, no intensity given.", {16})
 
     # S9 implausible number
     add("S9", P1, ts(P1, 23, 20, 50), "free_text",
@@ -506,13 +495,11 @@ def build_special_cases() -> tuple[list[dict], dict[str, set[int]]]:
         "Took my ondansetron at 8 this morning but threw it up about 20 minutes later. "
         "Took another at 10 and that one stayed down.",
         expected([sym("vomiting", "present", P2.iso(2), "morning", cmin=1, cmax=1,
-                      related_med="ondansetron", med_relation="vomited_up_dose", clock="08:20", approx=True)],
-                 [intake("ondansetron", "vomited_up", P2.iso(2), "morning", clock="08:00"),
-                  intake("ondansetron", "taken", P2.iso(2), "morning", clock="10:00")]),
+                      related_med="ondansetron", med_relation="vomited_up_dose")],
+                 [intake("ondansetron", "vomited_up", P2.iso(2), "morning"),
+                  intake("ondansetron", "taken", P2.iso(2), "morning")]),
         ["vomited_up_dose"],
-        "Two intake rows: one vomited up, one taken. Added after human review: stated times 'at 8' and "
-        "'at 10' are stored as clock times; the vomit is 'about 20 minutes later' -> ~08:20 (approximate, "
-        "computed from a stated time).", {2})
+        "Two intake rows: one vomited up, one taken.", {2})
 
     # S11 symptom despite medication
     add("S11", P5, ts(P5, 4, 19, 20), "free_text",

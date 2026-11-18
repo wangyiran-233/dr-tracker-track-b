@@ -69,12 +69,19 @@ single failed report falls back to rules and is flagged.
 
 **Gold set** (30 reports, raw counts in [`eval/results.md`](../eval/results.md)): symptom detection is the
 same for both (recall 39/40). The LLM (prompt v2) is better on presence, counts and severity (39/39, 15/15, 18/18
-vs 38/39, 14/15, 17/18), on tricky reports (12/16 vs 11/16; 13/16 when clock times, which
-only the parked v3 extracts, are not scored), on flag recall (5/5 vs 4/5) and on corrections (1/1 vs 0/1). Rules
+vs 38/39, 14/15, 17/18), on tricky reports (13/16 vs 11/16), on flag recall (5/5 vs 4/5) and on corrections
+(1/1 vs 0/1). Rules
 win on templated routine reports (7/7 vs 5/7). The samples are small, so no significance is claimed. Human review
 of the 18 AI-drafted tricky labels: **16 agreed, 2 revised**. Both revisions were questionnaire PRN drugs labelled
-as patient-stated when they were inferred, which led to the explicit *inferred vs stated* field. **Blind messy
-set:** TBD — evaluation pending.
+as patient-stated when they were inferred, which led to the explicit *inferred vs stated* field.
+
+**Blind messy set** (88 reports, 22 failure categories × 4; labels reviewed by the author before any parser ran:
+79 agreed, 9 revised). Reports fully correct: LLM v2 61/88 vs rules 35/88. **Wrong and unflagged: 24/88 vs
+50/88**; wrong and flagged: 3/88 each. Review-flag recall is low for both (11/61 vs 4/61; red flags 4/9 vs 2/9).
+The prompt and rules were deliberately not tuned on these results. The main lesson is that the flag layer, not
+extraction, is the weak point: uncertain presence, distress without a symptom, non-English text and out-of-schema
+complaints have no deterministic flag yet, so a hedged report parsed with false confidence goes straight to the
+chart. Details in [`eval/results.md`](../eval/results.md).
 
 **Why "wrong and unflagged" matters more than "wrong and flagged".** A flagged error goes to the review queue. A
 nurse sees the patient's words next to the parsed value, so the cost is a minute of review time. An unflagged
@@ -112,6 +119,13 @@ phrases, no correction or time-shift words, no unmapped drugs, values in range) 
 everything else to the LLM. This saves cost and latency and makes routine data fully reproducible. The risk is the
 router's own false confidence, so its acceptance rule must be evaluated on the blind set (wrong-and-unflagged among
 rule-accepted reports). A cheap variant runs both parsers and flags disagreements.
+
+**Patient-stated clock times.** Store a time when the patient gives one ("took it at 8", "around 2pm"), marked
+exact or approximate, and never derive it from the submission time. Today only the part of day is kept.
+
+**Quote the full contiguous evidence phrase.** Some correct rows are dropped by the verbatim check because the
+model joins words that are not adjacent in the report. Asking for the whole contiguous phrase (one phrase may support
+several rows) would keep those rows without weakening the check.
 
 **Similarity check against a labelled example library.** This would be an extra validation layer. Each extracted
 row's evidence span is compared, by embedding similarity, with human-reviewed example sentences (gold + blind

@@ -508,8 +508,6 @@ def _events_view(ev: pd.DataFrame) -> pd.DataFrame:
         "severity": ev["severity_level"].map(sev_label),
         "score /10": ev["severity_nrs"].map(lambda x: "" if pd.isna(x) else str(int(x))),
         "count": ev.apply(count, axis=1), "date": ev["occurred_date"], "part of day": ev["part_of_day"],
-        "clock time": [("" if not isinstance(t, str) else ("~" if p == "approximate" else "") + t[11:16])
-                       for t, p in zip(ev["occurred_start"], ev["time_precision"])],
         "medication link": ev.apply(lambda r: "" if not r["med_relation"] else
                                     f"{r['med_relation']} {r['related_med'] or '(unmapped)'}", axis=1),
         "method": ev["extraction_method"], "confidence": ev["confidence"].round(2), "status": ev["status"],

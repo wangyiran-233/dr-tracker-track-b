@@ -1,11 +1,18 @@
-"""Evaluate the keyword baseline and the Groq LLM parser against the gold set.
+"""Evaluate the keyword baseline and the Groq LLM parser against the gold set
+and the blind messy set.
 
 Usage:
     .venv\\Scripts\\python.exe evaluate.py --offline  # rule + every LLM prompt version, cache only
     .venv\\Scripts\\python.exe evaluate.py --no-llm   # baseline only
 
-Writes eval/results.md (one table: rule baseline vs every prompt version, plus every error) and
-eval/predictions_<method>.json (local working files, not committed).
+Writes eval/results.md (gold set: rule baseline vs every prompt version; blind set: rule baseline vs
+the current prompt; plus every error) and eval/predictions_<method>.json (local working files, not
+committed).
+
+Safety metrics (both sets): a report is "wrong" when it is not fully correct (a symptom row missed,
+spurious or with a wrong scored field). "Flagged" means the pipeline raised at least one review flag
+of any type on that report, so a person sees it. "Wrong & unflagged" is the primary safety number:
+those errors reach the chart without anyone looking at them.
 
 Matching: within each report, every gold event is paired with the best
 predicted event for the same symptom (date > part of day > presence > count).
@@ -21,9 +28,11 @@ accuracy is computed on the pairs:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sqlite3
 from collections import defaultdict
+from itertools import permutations
 from pathlib import Path
 
 from cinv.common import Context
@@ -65,9 +74,7 @@ def ev_tuple(e) -> dict:
             "severity_nrs": e.severity_nrs, "episode_count_min": e.episode_count_min,
             "episode_count_max": e.episode_count_max, "occurred_date": e.occurred_date.isoformat(),
             "part_of_day": e.part_of_day, "related_med": e.related_med, "med_relation": e.med_relation,
-            "evidence_span": e.evidence_span,
-            "clock_time": e.occurred_start[11:16] if e.occurred_start else None,
-            "clock_time_approximate": e.time_precision == "approximate"}
+            "evidence_span": e.evidence_span}
 
 
 def short(e: dict) -> str:
@@ -135,8 +142,6 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
                                   (pe["episode_count_min"], pe["episode_count_max"])
             if ge["symptom_code"] in SEVERITY_SYMPTOMS and ge["presence"] != "absent":
                 checks["severity"] = ge["severity_level"] == pe["severity_level"]
-            if ge.get("clock_time") or pe["clock_time"]:          # scored only where a time exists
-                checks["clock_time"] = _clock(ge) == _clock(pe)
             for k, ok in checks.items():
                 t.add(k, ok)
             bad = [k for k, ok in checks.items() if not ok]
@@ -161,21 +166,6 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
         for x in rest:
             t.add("intake_precision", False)
             errs.append(f"INTAKE SPURIOUS {x}")
-        # clock time on intake rows, matched on (med, status, date, source)
-        pool: dict[tuple, list] = {}
-        for i in rep.intake_events:
-            pool.setdefault((i.med, i.intake_status, i.taken_date.isoformat(), med_source(i)), []).append(i)
-        for gx, key in zip(exp["intake_events"], gi):
-            cands = pool.get(key, [])
-            pr = cands.pop(0) if cands else None
-            pc = {"clock_time": pr.taken_at[11:16] if pr and pr.taken_at else None,
-                  "clock_time_approximate": bool(pr and pr.time_precision == "approximate")}
-            if gx.get("clock_time") or pc["clock_time"]:
-                ok = _clock(gx) == _clock(pc)
-                t.add("clock_time", ok)
-                if not ok:
-                    errs.append(f"WRONG      intake {key[0]} {key[1]}: clock_time expected {_fmt_clock(gx)} "
-                                f"got {_fmt_clock(pc)}")
         for _ in range(len(pi) - len(rest)):
             t.add("intake_precision", True)
 
@@ -198,6 +188,9 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
                 errs.append(f"CORRECTION not linked to {exp['supersedes_report_id']}")
 
         t.add(f"report_exact[{g['label_source']}]", report_ok)
+        flagged = bool(rep.flags) or bool(cross_by_report[rid])
+        t.add("wrong_flagged", not report_ok and flagged)
+        t.add("wrong_unflagged", not report_ok and not flagged)
         if rep.dropped:
             errs += [f"DROPPED    {d}" for d in rep.dropped]
         if rep.failed:
@@ -210,19 +203,7 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
     return tallies, errors
 
 
-def _clock(e: dict) -> tuple:
-    c = e.get("clock_time")
-    return (c, bool(e.get("clock_time_approximate"))) if c else (None, False)
-
-
-def _fmt_clock(e: dict) -> str:
-    c, approx = _clock(e)
-    return "none" if not c else ("~" if approx else "") + c
-
-
 def _field(e: dict, k: str):
-    if k == "clock_time":
-        return _fmt_clock(e)
     if k == "date":
         return e["occurred_date"]
     if k == "count":
@@ -230,6 +211,238 @@ def _field(e: dict, k: str):
     if k == "severity":
         return e["severity_level"]
     return e[k]
+
+
+# ---------------------------------------------------------------------------
+# Blind messy set (labels: data/blind_review.csv, human-reviewed)
+# ---------------------------------------------------------------------------
+
+BLIND_SET = ROOT / "data" / "messy_blind_set.json"
+BLIND_LABELS = ROOT / "data" / "blind_review.csv"
+# Dates are only labelled (and scored) where resolving the date is the point of the category.
+BLIND_DATE_CATEGORIES = {"multi_day_catch_up", "cycle_day_references", "time_ambiguity"}
+
+
+def _parse_label_symptoms(text: str) -> list[dict]:
+    """'vomiting, present, 2–null times' -> dict; '(no symptom events)' -> []. A row without a
+    count part has no labelled count (count not scored)."""
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("("):
+            continue
+        parts = [x.strip() for x in line.split(",")]
+        row = {"symptom_code": parts[0], "presence": parts[1], "count": None}
+        if len(parts) > 2:
+            lo, hi = parts[2].replace(" times", "").split("–")
+            row["count"] = (None if lo == "null" else int(lo), None if hi == "null" else int(hi))
+        out.append(row)
+    return out
+
+
+def load_blind() -> list[dict]:
+    """Blind reports joined with their reviewed labels."""
+    texts = {r["report_id"]: r for r in json.loads(BLIND_SET.read_text(encoding="utf-8"))["reports"]}
+    out = []
+    with BLIND_LABELS.open(encoding="utf-8-sig", newline="") as f:
+        for lab in csv.DictReader(f):
+            rep = texts[lab["report_id"]]
+            sym = _parse_label_symptoms(lab["expected_symptoms"])
+            dates = lab.get("expected_date", "").splitlines()
+            score_dates = rep["category"] in BLIND_DATE_CATEGORIES
+            assert not score_dates or len(dates) == len(sym), lab["report_id"]
+            for i, row in enumerate(sym):
+                d = dates[i].strip() if score_dates else "any"
+                row["dates"] = None if d == "any" else set(d.split("|"))
+            flags = set() if lab["expected_flags"].strip() == "none" else \
+                {x.strip() for x in lab["expected_flags"].split(";")}
+            out.append({"report_id": lab["report_id"], "category": rep["category"],
+                        "submitted_at": rep["submitted_at"], "text": rep["text"],
+                        "symptoms": sym, "flags": flags})
+    return out
+
+
+def _blind_pair_checks(g: dict, p: dict) -> dict[str, bool]:
+    checks = {"presence": g["presence"] == p["presence"]}
+    if g["count"] is not None and g["symptom_code"] in COUNTED:
+        checks["count"] = g["count"] == (p["episode_count_min"], p["episode_count_max"])
+    if g["dates"] is not None:
+        checks["date"] = p["occurred_date"] in g["dates"]
+    return checks
+
+
+def _blind_match(gold: list[dict], pred: list[dict]):
+    """Best one-to-one assignment (at most a few rows, so brute force): most pairs, then most
+    passing checks."""
+    slots = list(range(len(pred))) + [None] * len(gold)
+    best, best_score = (None,) * len(gold), -1
+    for perm in set(permutations(slots, len(gold))):
+        score = 0
+        for g, j in zip(gold, perm):
+            if j is None:
+                continue
+            if pred[j]["symptom_code"] != g["symptom_code"]:
+                score = -1
+                break
+            score += 10 + sum(_blind_pair_checks(g, pred[j]).values())
+        if score > best_score:
+            best, best_score = perm, score
+    pairs = [(g, pred[j]) for g, j in zip(gold, best) if j is not None]
+    missed = [g for g, j in zip(gold, best) if j is None]
+    used = {j for j in best if j is not None}
+    return pairs, missed, [p for j, p in enumerate(pred) if j not in used]
+
+
+def _blind_short(g: dict) -> str:
+    s = f"{g['symptom_code']} {g['presence']}"
+    if g["count"]:
+        s += f" n={g['count'][0]}-{g['count'][1]}"
+    return s
+
+
+def evaluate_blind(blind: list[dict], parsed: dict[str, ParsedReport]) -> tuple[dict, list[dict]]:
+    """Overall and per-category tallies, plus one record per report."""
+    by_cat: dict[str, Tally] = defaultdict(Tally)
+    overall = Tally()
+    records = []
+    for b in blind:
+        rep = parsed[b["report_id"]]
+        pred = [ev_tuple(e) for e in rep.symptom_events]
+        pairs, missed, spurious = _blind_match(b["symptoms"], pred)
+        errs = [f"MISSED     {_blind_short(m)}" for m in missed]
+        errs += [f"SPURIOUS   {short(s)}  evidence={s['evidence_span']!r}" for s in spurious]
+        for _ in pairs:
+            overall.add("symptom_recall", True)
+            overall.add("symptom_precision", True)
+        for _ in missed:
+            overall.add("symptom_recall", False)
+        for _ in spurious:
+            overall.add("symptom_precision", False)
+        for g, p in pairs:
+            checks = _blind_pair_checks(g, p)
+            for k, ok in checks.items():
+                overall.add(k, ok)
+            bad = [k for k, ok in checks.items() if not ok]
+            if bad:
+                got = {"presence": p["presence"], "count": f"{p['episode_count_min']}-{p['episode_count_max']}",
+                       "date": p["occurred_date"]}
+                exp = {"presence": g["presence"],
+                       "count": f"{g['count'][0]}-{g['count'][1]}" if g["count"] else None,
+                       "date": "|".join(sorted(g["dates"] or []))}
+                errs.append(f"WRONG      {g['symptom_code']}: " + ", ".join(
+                    f"{k} expected {exp[k]} got {got[k]}" for k in bad) + f"  evidence={p['evidence_span']!r}")
+        wrong = bool(errs)
+        pred_flags = {f.flag_type for f in rep.flags}
+        flagged = bool(pred_flags)
+        if "red_flag" in b["flags"]:
+            overall.add("red_flag_recall", "red_flag" in pred_flags)
+        for f in sorted(b["flags"]):
+            overall.add("flag_recall", f in pred_flags)
+            if f not in pred_flags:
+                errs.append(f"FLAG MISSED {f}")
+        for f in sorted(pred_flags):
+            overall.add("flag_precision", f in b["flags"])
+            if f not in b["flags"]:
+                errs.append(f"FLAG SPURIOUS {f}")
+        if rep.dropped:
+            errs += [f"DROPPED    {d}" for d in rep.dropped]
+        if rep.failed:
+            errs.append("FAILED     parser returned no usable output")
+        for t in (overall, by_cat[b["category"]]):
+            t.add("report_correct", not wrong)
+            t.add("wrong_flagged", wrong and flagged)
+            t.add("wrong_unflagged", wrong and not flagged)
+        records.append({"report_id": b["report_id"], "category": b["category"], "input": b["text"],
+                        "wrong": wrong, "flagged": flagged, "pred_flags": sorted(pred_flags), "errors": errs})
+    return {"overall": overall, "by_category": by_cat}, records
+
+
+BLIND_ROWS = [
+    ("Symptom rows - precision", "symptom_precision"),
+    ("Symptom rows - recall", "symptom_recall"),
+    ("Presence (present/absent/uncertain)", "presence"),
+    ("Episode count (min & max, where labelled)", "count"),
+    ("Date (3 date categories only)", "date"),
+    ("Review flags - precision", "flag_precision"),
+    ("Review flags - recall", "flag_recall"),
+    ("Red flags - recall (reports labelled red_flag)", "red_flag_recall"),
+    ("Report fully correct (symptom rows)", "report_correct"),
+    ("Wrong & flagged (reports)", "wrong_flagged"),
+    ("Wrong & unflagged (reports) - lower is better", "wrong_unflagged"),
+]
+
+
+def _raw(c: tuple[int, int]) -> str:
+    return "-" if c[1] == 0 else f"{c[0]}/{c[1]}"
+
+
+def blind_markdown(res: dict[str, dict], recs: dict[str, list[dict]], blind: list[dict]) -> list[str]:
+    methods = list(res)
+    cats = list(dict.fromkeys(b["category"] for b in blind))
+    md = [f"{len(blind)} reports ({len(cats)} failure categories x {len(blind) // len(cats)}), written by a "
+          "different model than the parser's, labelled and human-reviewed before any parser ran "
+          "(`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these "
+          "results. Severity and medication rows are not labelled here; dates are scored only for the 3 "
+          "date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is "
+          "parsed on its own (no previous report, no medication orders). \"Wrong\" = at least one symptom "
+          "row missed, spurious or with a wrong presence / count / date; flags are scored separately.", "",
+          "| Metric | " + " | ".join(methods) + " |", "|---|" + "---|" * len(methods)]
+    for label, key in BLIND_ROWS:
+        cells = [fmt(res[m]["overall"].get(key)) for m in methods]
+        if not all(c == "-" for c in cells):
+            md.append(f"| {label} | " + " | ".join(cells) + " |")
+    md += ["", "### By category (raw counts, 4 reports each)", "",
+           "| Category | " + " | ".join(f"{m}: correct | {m}: wrong & unflagged" for m in methods) + " |",
+           "|---|" + "---|---|" * len(methods)]
+    for c in cats:
+        cells = []
+        for m in methods:
+            t = res[m]["by_category"][c]
+            cells += [_raw(t.get("report_correct")), str(t.get("wrong_unflagged")[0])]
+        md.append(f"| {c} | " + " | ".join(cells) + " |")
+    for m in methods:
+        wu = [r for r in recs[m] if r["wrong"] and not r["flagged"]]
+        md += ["", f"### Wrong & unflagged - {m} ({len(wu)} reports)", ""]
+        for r in wu:
+            md += [f"**{r['report_id']}** ({r['category']})  ", f"> {r['input'].replace(chr(10), ' / ') or '(empty message)'}", ""]
+            md += [f"- `{x}`" for x in r["errors"]] + [""]
+    for m in methods:
+        wf = [r for r in recs[m] if r["wrong"] and r["flagged"]]
+        md += ["", f"### Wrong & flagged - {m} ({len(wf)} reports)", ""]
+        for r in wf:
+            md += [f"- **{r['report_id']}** ({r['category']}; flags: {', '.join(r['pred_flags'])}): "
+                   + "; ".join(f"`{x}`" for x in r["errors"])]
+    return md
+
+
+def run_blind(ctx: Context, offline: bool, no_llm: bool, out: Path) -> list[str]:
+    blind = load_blind()
+    rows = [{"report_id": b["report_id"], "patient_id": f"BLIND-{b['report_id']}",
+             "submitted_at": b["submitted_at"], "source": "free_text", "raw_text": b["text"],
+             "questionnaire_json": None} for b in blind]
+    parsers: dict[str, tuple] = {"Rule baseline": (parse_free_text_rule, None)}
+    if not no_llm:
+        ex = GroqExtractor(prompt_version=PROMPT_VERSION, offline=offline)
+        missing = [r for r in rows if not ex.is_cached(r["raw_text"], r["submitted_at"])]
+        if missing and not ex.available:
+            print(f"Blind set: LLM {PROMPT_VERSION} skipped ({len(missing)} reports not cached, no API key).")
+        else:
+            parsers[f"LLM prompt {PROMPT_VERSION}"] = (parse_free_text_llm(ex), ex)
+    res, recs = {}, {}
+    for name, (tp, ex) in parsers.items():
+        try:
+            parsed, _ = run(rows, ctx, tp, fallback=ex is None,
+                            should_stop=(lambda: ex.fatal_error) if ex else None)
+        except FatalLLMError as e:
+            raise SystemExit(f"Blind evaluation stopped, no results written: {e}")
+        res[name], recs[name] = evaluate_blind(blind, parsed)
+        slug = f"blind_llm_{ex.prompt_version}" if ex else "blind_rule"
+        (out / f"predictions_{slug}.json").write_text(json.dumps(
+            {rid: json.loads(rep.model_dump_json()) for rid, rep in parsed.items()}, indent=1), encoding="utf-8")
+        if ex:
+            print(f"Blind set, {name}: Groq API calls {ex.calls} (rest from cache); "
+                  f"reports with no usable LLM output: {sum(r.failed for r in parsed.values())}")
+    return blind_markdown(res, recs, blind)
 
 
 ROWS = [
@@ -240,7 +453,6 @@ ROWS = [
     ("Severity level", "severity"),
     ("Date (occurred_date)", "date"),
     ("Part of day", "part_of_day"),
-    ("Clock time when the patient states one (incl. ~approx.)", "clock_time"),
     ("Medication intake (drug, status, date, inferred vs stated) - precision", "intake_precision"),
     ("Medication intake (drug, status, date, inferred vs stated) - recall", "intake_recall"),
     ("Review flags - precision", "flag_precision"),
@@ -248,6 +460,8 @@ ROWS = [
     ("Correction linked to original", "correction_linked"),
     ("Report fully correct - hand-annotated tricky", "report_exact[hand_annotated]"),
     ("Report fully correct - routine", "report_exact[generator]"),
+    ("Wrong & flagged (reports; goes to the review queue)", "wrong_flagged"),
+    ("Wrong & unflagged (reports; reaches the chart unseen) - lower is better", "wrong_unflagged"),
 ]
 
 
@@ -285,6 +499,7 @@ def main() -> None:
     ap.add_argument("--offline", action="store_true", help="never call the API; use cached responses only")
     ap.add_argument("--prompt-versions", nargs="+", default=list(PROMPTS),
                     help="LLM prompt versions to compare (older ones come from the cache)")
+    ap.add_argument("--no-blind", action="store_true", help="skip the blind messy set")
     ap.add_argument("--out", type=Path, default=ROOT / "eval")
     args = ap.parse_args()
 
@@ -353,7 +568,9 @@ def main() -> None:
           "Reports where the parser produced no usable output (scored as all-missed): "
           + ", ".join(f"{m} {results[m]['_failed']}" for m in results), "",
           f"## Questionnaire reports (n={n_q})", "", table(results, "questionnaire"), "",
-          "## Blind messy set", "", "TBD — blind set evaluation pending.", ""]
+          "## Blind messy set", ""]
+    md += (run_blind(ctx, args.offline, args.no_llm, args.out) if not args.no_blind
+           else ["Not run (--no-blind)."]) + [""]
     for name, errors in all_errors.items():
         md += [f"## Errors - {name} ({len(errors)} reports with at least one error)", ""]
         for e in errors:

@@ -179,7 +179,6 @@ def reports(patient_id: str | None = None) -> pd.DataFrame:
 def report_events(report_id: str) -> pd.DataFrame:
     return query("""SELECT e.event_id, e.symptom_code, e.presence, e.severity_level, e.severity_nrs,
                            e.episode_count_min, e.episode_count_max, e.occurred_date, e.part_of_day,
-                           e.occurred_start, e.time_precision,
                            m.generic_name AS related_med, e.med_relation, e.evidence_span,
                            e.extraction_method, e.confidence, e.status, e.supersedes_event_id
                     FROM symptom_events e LEFT JOIN medications m ON m.med_id = e.related_med_id
@@ -195,11 +194,7 @@ def report_intakes(report_id: str) -> pd.DataFrame:
                                 ELSE 'patient''s words' END AS medication_source,
                            CASE WHEN i.extraction_method = 'questionnaire' THEN ''
                                 ELSE i.med_text_raw END AS patient_wording,
-                           i.intake_status, i.dose_count, i.taken_date,
-                           CASE WHEN i.taken_at IS NULL THEN ''
-                                ELSE (CASE i.time_precision WHEN 'approximate' THEN '~' ELSE '' END)
-                                     || substr(i.taken_at, 12, 5) END AS clock_time,
-                           i.part_of_day, i.evidence_span, i.confidence
+                           i.intake_status, i.dose_count, i.taken_date, i.part_of_day, i.evidence_span, i.confidence
                     FROM medication_intake_events i LEFT JOIN medications m ON m.med_id = i.med_id
                     WHERE i.report_id = ? ORDER BY i.intake_id""", [INFERRED_PRN_TEXT, report_id])
 

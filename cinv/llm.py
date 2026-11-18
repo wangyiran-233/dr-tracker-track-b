@@ -24,20 +24,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError
 
 from .common import Context, evidence_in_text, submitted_date
 from .models import (IntakeEvent, IntakeStatus, MedRelation, ParsedReport, PartOfDay, Presence,
                      SymptomCode, SymptomEvent, WeightReading)
 
 # The one place the prompt version is chosen: code, README and the demo database all follow it.
-# v2 is frozen as the submission baseline. v3 lives on the experimental/v3 branch (see README, Next steps).
+# v2 is frozen as the submission baseline.
 PROMPT_VERSION = "v2"
 # Largest open-weight model on the account's Groq model list (checked 2026-11-16).
 # llama-3.3-70b-versatile is no longer served (404 model_not_found).
@@ -133,16 +132,6 @@ CONTEXT_WINDOW_HOURS = 72
 
 # --- LLM output contract (validated with Pydantic) -------------------------
 
-def _norm_clock(v: str | None) -> str | None:
-    """Accept 'H:MM' or 'HH:MM' (24 h), return 'HH:MM'; anything else is a validation error."""
-    if v is None or v == "":
-        return None
-    m = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", v)
-    if not m or int(m.group(1)) > 23 or int(m.group(2)) > 59:
-        raise ValueError(f"clock_time must be HH:MM (24 h), got {v!r}")
-    return f"{int(m.group(1)):02d}:{m.group(2)}"
-
-
 class LLMSymptom(BaseModel):
     symptom_code: SymptomCode
     presence: Presence
@@ -152,15 +141,11 @@ class LLMSymptom(BaseModel):
     episode_count_max: int | None = Field(None, ge=0)
     day_offset: int = Field(0, ge=-7, le=0)
     part_of_day: PartOfDay = "unknown"
-    clock_time: str | None = None              # unused by prompt v2 (kept for the v3 branch)
-    clock_time_approximate: bool = False
     timing_raw: str | None = None
     med_mention: str | None = None
     med_relation: MedRelation | None = None
     evidence_span: str
     confidence: float = Field(ge=0, le=1)
-
-    _clock = field_validator("clock_time")(lambda cls, v: _norm_clock(v))
 
 
 class LLMIntake(BaseModel):
@@ -169,12 +154,8 @@ class LLMIntake(BaseModel):
     dose_count: int = Field(1, ge=0, le=20)
     day_offset: int = Field(0, ge=-7, le=0)
     part_of_day: PartOfDay = "unknown"
-    clock_time: str | None = None
-    clock_time_approximate: bool = False
     evidence_span: str
     confidence: float = Field(ge=0, le=1)
-
-    _clock = field_validator("clock_time")(lambda cls, v: _norm_clock(v))
 
 
 class LLMWeight(BaseModel):
@@ -326,14 +307,6 @@ class GroqExtractor:
         return None, f"no valid output after 2 attempts: {last_err[:300] if last_err else ''}"
 
 
-def _clock_fields(day, clock: str | None, approximate: bool) -> tuple[str | None, str]:
-    """(ISO datetime or None, time_precision). 'day' is refined to 'part_of_day' later
-    by postprocess when a part of day is known."""
-    if not clock:
-        return None, "day"
-    return f"{day.isoformat()}T{clock}:00", ("approximate" if approximate else "exact")
-
-
 def parse_free_text_llm(extractor: GroqExtractor):
     """Build a text-parser function with the same signature as the rule parser."""
 
@@ -354,13 +327,11 @@ def parse_free_text_llm(extractor: GroqExtractor):
                 continue
             med = ctx.map_med(s.med_mention)
             day = base + timedelta(days=s.day_offset)
-            start, precision = _clock_fields(day, s.clock_time, s.clock_time_approximate)
             try:
                 rep.symptom_events.append(SymptomEvent(
                     symptom_code=s.symptom_code, presence=s.presence, severity_level=s.severity_level,
                     severity_raw=s.severity_raw, episode_count_min=s.episode_count_min,
                     episode_count_max=s.episode_count_max, occurred_date=day,
-                    occurred_start=start, time_precision=precision,
                     part_of_day=s.part_of_day, timing_raw=s.timing_raw, related_med=med,
                     med_mention=s.med_mention, med_relation=s.med_relation, evidence_span=s.evidence_span,
                     extraction_method="llm", confidence=s.confidence))
@@ -372,11 +343,10 @@ def parse_free_text_llm(extractor: GroqExtractor):
                 rep.dropped.append(f"intake {i.med_mention!r}: evidence not in text: {i.evidence_span!r}")
                 continue
             day = base + timedelta(days=i.day_offset)
-            taken_at, precision = _clock_fields(day, i.clock_time, i.clock_time_approximate)
             rep.intake_events.append(IntakeEvent(
                 med=ctx.map_med(i.med_mention), med_text_raw=i.med_mention, intake_status=i.intake_status,
-                dose_count=i.dose_count, taken_date=day, taken_at=taken_at, time_precision=precision,
-                part_of_day=i.part_of_day, evidence_span=i.evidence_span, extraction_method="llm",
+                dose_count=i.dose_count, taken_date=day, part_of_day=i.part_of_day,
+                evidence_span=i.evidence_span, extraction_method="llm",
                 confidence=i.confidence))
 
         for w in out.weights:
