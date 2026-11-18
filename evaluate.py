@@ -1,10 +1,11 @@
 """Evaluate the keyword baseline and the Groq LLM parser against the gold set.
 
 Usage:
-    .venv\\Scripts\\python.exe evaluate.py            # rule + every LLM prompt version (key or cache)
+    .venv\\Scripts\\python.exe evaluate.py --offline  # rule + every LLM prompt version, cache only
     .venv\\Scripts\\python.exe evaluate.py --no-llm   # baseline only
 
-Writes eval/results_<latest prompt>.md (tables + every error) and eval/predictions_<method>.json.
+Writes eval/results.md (one table: rule baseline vs every prompt version, plus every error) and
+eval/predictions_<method>.json (local working files, not committed).
 
 Matching: within each report, every gold event is paired with the best
 predicted event for the same symptom (date > part of day > presence > count).
@@ -281,6 +282,7 @@ def main() -> None:
     ap.add_argument("--db", type=Path, default=ROOT / "data" / "cinv.db")
     ap.add_argument("--gold", type=Path, default=ROOT / "data" / "gold_set.json")
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--offline", action="store_true", help="never call the API; use cached responses only")
     ap.add_argument("--prompt-versions", nargs="+", default=list(PROMPTS),
                     help="LLM prompt versions to compare (older ones come from the cache)")
     ap.add_argument("--out", type=Path, default=ROOT / "eval")
@@ -295,7 +297,7 @@ def main() -> None:
     parsers: dict[str, tuple] = {"Rule baseline": (parse_free_text_rule, None)}
     if not args.no_llm:
         for pv in args.prompt_versions:
-            ex = GroqExtractor(prompt_version=pv)
+            ex = GroqExtractor(prompt_version=pv, offline=args.offline)
             missing = []
             for r in rows:
                 if r["source"] == "free_text":
@@ -338,7 +340,9 @@ def main() -> None:
     n_ft = sum(g["source"] == "free_text" for g in gold)
     n_q = len(gold) - n_ft
     latest = args.prompt_versions[-1] if len(parsers) > 1 else "rule"
-    md = [f"# Parser evaluation on the gold set - prompt {latest}", "",
+    md = [f"# Parser evaluation - gold set (latest prompt: {latest})", "",
+          "Raw counts are shown next to every percentage. Samples are small (one report moves a metric by "
+          "several points), so no statistical significance is claimed.", "",
           f"LLM model: {model}. Columns for older prompt versions are re-scored from cached "
           "responses, so they match their original runs.", "",
           f"Gold set: {len(gold)} reports ({n_ft} free text, {n_q} questionnaires). "
@@ -348,14 +352,15 @@ def main() -> None:
           "Symptom detection F1: " + ", ".join(f"{m} {f1(results[m]['free_text'])}" for m in results), "",
           "Reports where the parser produced no usable output (scored as all-missed): "
           + ", ".join(f"{m} {results[m]['_failed']}" for m in results), "",
-          f"## Questionnaire reports (n={n_q})", "", table(results, "questionnaire"), ""]
+          f"## Questionnaire reports (n={n_q})", "", table(results, "questionnaire"), "",
+          "## Blind messy set", "", "TBD — blind set evaluation pending.", ""]
     for name, errors in all_errors.items():
         md += [f"## Errors - {name} ({len(errors)} reports with at least one error)", ""]
         for e in errors:
             inp = e["input"] if isinstance(e["input"], str) else json.dumps(e["input"])
             md += [f"**{e['report_id']}** ({e['source']}; {', '.join(e['case_tags'])})  ", f"> {inp}", ""]
             md += [f"- `{x}`" for x in e["errors"]] + [""]
-    out = args.out / f"results_{latest}.md"
+    out = args.out / "results.md"
     out.write_text("\n".join(md), encoding="utf-8")
 
     print(f"\nFREE TEXT (n={n_ft})\n" + table(results, "free_text"))

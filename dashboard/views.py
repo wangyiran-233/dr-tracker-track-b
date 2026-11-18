@@ -53,7 +53,8 @@ def header(title: str, subtitle: str | None = None) -> bool:
         return False
     info = data.parser_info()
     run = f" · parsed {info['run_at'].replace('T', ' ')[:16]}" if info["run_at"] else ""
-    st.info(f"**Synthetic data — not for clinical use.**  \n"
+    st.info(f"**Synthetic data — not for clinical use.** · **Data as of {data.as_of():%b %d, %Y}** (last day in the "
+            f"dataset; “days ago” and “last 7 days” are counted from this date)  \n"
             f"Structured data on this dashboard was extracted by: **{info['label']}**{run}", icon="🧪")
     if subtitle:
         st.caption(subtitle)
@@ -135,7 +136,7 @@ def _flag_actions(flag_id: int, key: str) -> None:
 def attention_items(snap: pd.DataFrame) -> list[dict]:
     """One card per alert: open red flags, weight below the alert line, and silent
     drop-offs (no report for >= SILENT_DAYS days before the reference date)."""
-    ref = data.reference_date()
+    ref = data.as_of()
     pts = data.patients().set_index("patient_id")
     names = {p: short_name(n) for p, n in zip(snap["patient_id"], snap["display_name"])}
     queue = data.review_queue()
@@ -183,7 +184,7 @@ def attention_items(snap: pd.DataFrame) -> list[dict]:
         words = lr["words"] if isinstance(lr["words"], str) and lr["words"] else _q_summary(lr["questionnaire_json"])
         items.append({"kind": "silent", "pid": pid, "name": names[pid],
                       "reason": f"{silent} days without any report "
-                                f"(reported on {before['days_reported']}/7 days in the week before)",
+                                f"(reported on {before['days_reported']} of the last 7 days)",
                       "quote": f"Last report {when:%b %d %H:%M}: {words}",
                       "regimen": pts.loc[pid, "regimen_name"], "cycle": cp["short"] if cp else "",
                       "days": silent, "when": when.strftime("%b %d"),
@@ -248,7 +249,7 @@ def _status_tags(r, silent_days: int) -> str:
 
 def cohort_table(snap: pd.DataFrame) -> str:
     """Summary table as HTML so long cells wrap instead of being cut off."""
-    ref = data.reference_date()
+    ref = data.as_of()
     pts = data.patients().set_index("patient_id")
     last = data.last_reports().set_index("patient_id")
     th = ("text-align:left;padding:8px 10px;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;"
@@ -274,7 +275,7 @@ def cohort_table(snap: pd.DataFrame) -> str:
         cells = [
             f"<b>{esc(pid)}</b> · {esc(short_name(r['display_name']))}",
             f"{esc(pts.loc[pid, 'regimen_name'])}<br><small style='opacity:.75'>{esc(cp['short']) if cp else ''} "
-            f"at last report</small>",
+            f"as of {ws['end']:%b %d}</small>",
             f"Nausea: {esc(ws['nausea'])}<br>Vomiting: {esc(ws['vomiting'])}"
             f"<br><small style='opacity:.75'>reported {ws['days_reported']}/7 days</small>",
             prn, weight,
@@ -291,13 +292,13 @@ def page_overview() -> None:
     if not header("Patients — pre-visit overview"):
         return
     snap = data.snapshot()
-    ref = data.reference_date()
+    ref = data.as_of()
     needs_attention(snap)
 
     st.subheader(f"Active cohort ({len(snap)} patients)")
     st.markdown(cohort_table(snap), unsafe_allow_html=True)
-    st.caption(f"Static synthetic snapshot: “today” = {ref:%b %d, %Y}, the most recent report in the dataset. "
-               "7-day columns count back from each patient's latest report. “reported none” = the patient said 0; "
+    st.caption(f"7-day columns cover {ref - pd.Timedelta(days=6):%b %d}–{ref:%b %d} (as-of date = last day in the "
+               "dataset), the same window for every patient. “reported none” = the patient said 0; "
                "“not reported” = no report about it (unknown, not 0) — same convention as the trend chart. "
                "Vomiting peaks are lower bounds for vague counts. Red flags are prominence rules for review, "
                "not diagnoses.")
@@ -341,14 +342,14 @@ def _kpi(col, label: str, value: str, sub: str, alert: bool = False) -> None:
 
 
 def kpi_strip(pid: str, p: pd.Series) -> None:
-    end = data.as_of(pid)
+    end = data.as_of()
     cp = data.cycle_position(pid, end)
     ws = data.week_summary(pid, end)
     w = data.latest_weight(pid)
     c = st.columns(4)
     if cp:
         _kpi(c[0], "Current cycle & phase", f"Cycle {cp['cycle']} · Day {cp['day']}",
-             f"{esc(cp['phase_text'])}<br>as of last report, {end:%b %d}", alert=cp["phase"] is not None)
+             f"{esc(cp['phase_text'])}<br>as of {end:%b %d}", alert=cp["phase"] is not None)
     else:
         _kpi(c[0], "Current cycle & phase", "Before cycle 1", f"as of {end:%b %d}")
     peak = []
@@ -440,7 +441,7 @@ def page_deepdive() -> None:
     regimen_change_panel(pid)
     if view == "Timeline":
         fig = trend_figure(data.daily(pid), data.prn(pid), data.weights(pid), data.chemo(pid),
-                           data.med_changes(pid), data.flagged_days(pid), p["enrolled_at"], data.as_of(pid), ev=ev)
+                           data.med_changes(pid), data.flagged_days(pid), p["enrolled_at"], data.as_of(), ev=ev)
         st.plotly_chart(fig, width="stretch", config={"displaylogo": False})
         st.caption(LEGEND + " PRN doses from questionnaires are attributed to the active PRN order (inferred, not "
                    "stated by the patient); days with several active PRN orders stay unattributed and are flagged.")
@@ -685,14 +686,13 @@ def page_method() -> None:
         "keyword rules and is flagged.")
 
     st.subheader("Parser evaluation on the gold set (30 reports)")
-    v2 = _md_sections(data.EVAL_DIR / "results_v2.md")
-    v1 = _md_sections(data.EVAL_DIR / "results_v1.md")
+    v2 = _md_sections(data.EVAL_DIR / "results.md")
     ft = next((k for k in v2 if k.startswith("Free-text")), None)
     if ft:
         st.markdown(f"**{ft}** — rule baseline vs LLM prompt v1 vs v2")
         st.markdown(v2[ft])
     else:
-        st.caption("eval/results_v2.md not found — run evaluate.py.")
+        st.caption("eval/results.md not found — run evaluate.py --offline.")
     st.markdown(
         "**v1 → v2 changes** (each targets an observed v1 error): exaggerated counts copied literally so the code "
         "guard can flag them · part of day only from time words, never from submission time · previous report "
@@ -704,10 +704,10 @@ def page_method() -> None:
     if err_v2:
         with st.expander(f"LLM prompt v2 — {err_v2.split('(')[-1].rstrip(')')}", expanded=True):
             st.markdown(v2[err_v2])
-    err_v1 = next((k for k in v1 if k.startswith("Errors - Groq")), None)
+    err_v1 = next((k for k in v2 if k.startswith("Errors - LLM prompt v1")), None)
     if err_v1:
-        with st.expander(f"LLM prompt v1 (snapshot) — {err_v1.split('(')[-1].rstrip(')')}"):
-            st.markdown(v1[err_v1])
+        with st.expander(f"LLM prompt v1 — {err_v1.split('(')[-1].rstrip(')')}"):
+            st.markdown(v2[err_v1])
     q = next((k for k in v2 if k.startswith("Questionnaire")), None)
     if q:
         with st.expander("Questionnaire reports (deterministic in all columns)"):

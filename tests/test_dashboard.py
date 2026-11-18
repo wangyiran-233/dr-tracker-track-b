@@ -112,7 +112,7 @@ def test_trend_tooltips_show_evidence_span():
     ev = data.day_evidence(pid)
     p = data.patients().set_index("patient_id").loc[pid]
     figs = [trend_figure(data.daily(pid), data.prn(pid), data.weights(pid), data.chemo(pid), data.med_changes(pid),
-                         data.flagged_days(pid), p["enrolled_at"], data.as_of(pid), ev=ev),
+                         data.flagged_days(pid), p["enrolled_at"], data.as_of(), ev=ev),
             cycle_figure(data.daily(pid), data.chemo(pid), data.med_changes(pid), 21, ev=ev)]
     for fig in figs:
         templates = [t.hovertemplate or "" for t in fig.data]
@@ -138,3 +138,26 @@ def test_full_app_dev_toggle_and_jump_to_deepdive():
     next(b for b in at.button if b.label == "Inspect Patient →").click().run()
     _ok(at)
     assert at.title[0].value == "Patient Deep-Dive"
+
+
+def test_single_as_of_date_everywhere():
+    """One dataset-wide as-of date: shown in the page header and used by the SQL snapshot."""
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from dashboard import data
+    ref = data.as_of()
+    snap = data.snapshot()
+    assert set(snap["as_of"]) == {ref.isoformat()}
+    last = data.last_reports().set_index("patient_id")["submitted_at"].str[:10]
+    for _, r in snap.iterrows():
+        assert r["days_since_last_report"] == (ref - __import__("datetime").date.fromisoformat(last[r["patient_id"]])).days
+    for page in CLINICAL:
+        at = _page(page, "P001")
+        assert any(f"Data as of {ref:%b %d, %Y}" in i.value for i in at.info)
+
+
+def test_method_page_reads_published_results():
+    at = _page("page_method", "P001")
+    _ok(at)
+    assert not [c for c in at.caption if "not found" in c.value]
+    assert any("LLM prompt v2" in m.value for m in at.markdown)

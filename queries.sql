@@ -65,13 +65,17 @@ ORDER BY c.patient_id, period DESC, d.cinv_phase;
 
 
 -- name: pre_visit_snapshot
--- The "30 seconds before walking in" view: last 7 days per patient, relative
--- to each patient's latest report. days_reported_7d counts DISTINCT occurred_date (the day the
--- symptoms happened, not the day the report was submitted), so next-morning reports match the chart
--- window. Sorted so patients needing attention come first:
+-- The "30 seconds before walking in" view: the last 7 days up to one dataset-wide as-of date (the last
+-- day in the data), the same window for every patient, so a patient who stopped reporting shows gaps
+-- instead of an older window. days_since_last_report supports the silent drop-off alert.
+-- days_reported_7d counts DISTINCT occurred_date (the day the symptoms happened, not the day the report
+-- was submitted), so next-morning reports match the chart window. Sorted so patients needing attention come first:
 -- open red flags, then other open (non-info) flags, then weight alert, then worst nausea.
 WITH latest AS (
-    SELECT patient_id, MAX(date(submitted_at)) AS as_of FROM raw_reports GROUP BY patient_id
+    SELECT patient_id,
+           (SELECT MAX(date(submitted_at)) FROM raw_reports) AS as_of,
+           MAX(submitted_at)                                 AS last_report_at
+    FROM raw_reports GROUP BY patient_id
 ),
 win AS (
     SELECT s.* FROM v_daily_symptom_summary s
@@ -81,6 +85,8 @@ win AS (
 SELECT l.patient_id,
        p.display_name,
        l.as_of,
+       l.last_report_at,
+       CAST(julianday(l.as_of) - julianday(date(l.last_report_at)) AS INTEGER)                      AS days_since_last_report,
        (SELECT COUNT(DISTINCT w.occurred_date) FROM win w
          WHERE w.patient_id = l.patient_id)                                                        AS days_reported_7d,
        (SELECT MAX(w.max_severity_level) FROM win w

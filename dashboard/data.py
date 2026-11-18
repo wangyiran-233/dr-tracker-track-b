@@ -78,9 +78,10 @@ def snapshot() -> pd.DataFrame:
     return query(QUERIES["pre_visit_snapshot"])
 
 
-def as_of(patient_id: str) -> date:
-    v = query("SELECT MAX(date(submitted_at)) AS d FROM raw_reports WHERE patient_id = ?", [patient_id])["d"].iloc[0]
-    return date.fromisoformat(v)
+def as_of() -> date:
+    """The single 'as of' date for every view: the last day in this static synthetic dataset
+    (date of the most recent report). 'Days ago' and 'last 7 days' are all counted from it."""
+    return date.fromisoformat(query("SELECT MAX(date(submitted_at)) AS d FROM raw_reports")["d"].iloc[0])
 
 
 # ---------------------------------------------------------------------------
@@ -237,13 +238,8 @@ def set_flag_status(flag_id: int, status: str, note: str) -> None:
 # Clinical-view helpers (Overview cards, Deep-Dive header, chart provenance)
 # ---------------------------------------------------------------------------
 
-SILENT_DAYS = 3          # >= this many days without any report -> "silent drop-off"
+SILENT_DAYS = 3          # >= this many days without any report before the as-of date -> "silent drop-off"
 PHASES = {"acute": "Acute phase (day 1, ~0-24 h)", "delayed": "Delayed phase (days 2-5, ~24-120 h)"}
-
-
-def reference_date() -> date:
-    """'Today' for this static synthetic snapshot: the most recent report in the dataset."""
-    return date.fromisoformat(query("SELECT MAX(date(submitted_at)) AS d FROM raw_reports")["d"].iloc[0])
 
 
 def last_reports() -> pd.DataFrame:
@@ -284,9 +280,9 @@ def _fmt_level(v) -> str:
 
 
 def week_summary(patient_id: str, end=None) -> dict:
-    """7 days ending at `end` (default: the patient's latest report). Keeps 'reported 0'
+    """7 days ending at `end` (default: the dataset's as-of date). Keeps 'reported 0'
     (the patient said none) apart from 'not reported' (no report about it at all)."""
-    end = pd.Timestamp(end or as_of(patient_id))
+    end = pd.Timestamp(end or as_of())
     start = end - pd.Timedelta(days=6)
     d = daily(patient_id)
     w = d[(d["occurred_date"] >= start) & (d["occurred_date"] <= end)]

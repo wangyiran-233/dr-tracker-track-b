@@ -101,7 +101,7 @@ Report (submitted 2026-01-05 08:15, morning): "Vomited twice overnight. Still a 
 "part_of_day":"unknown","evidence_span":"took a Compazine","confidence":0.9}],"weights":[],"is_correction":false}"""
 
 
-# v2 changes vs v1 (motivated by v1 errors on the gold set, see eval/results_v1.md):
+# v2 changes vs v1 (motivated by v1 errors on the gold set; both are columns in eval/results.md):
 #  1. Exaggerated counts are copied literally; the deterministic guard in
 #     common.postprocess turns them into 1/NULL AND raises implausible_value.
 #     (v1 told the model to normalise them itself, which hid them from the guard.)
