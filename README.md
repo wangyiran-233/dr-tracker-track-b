@@ -146,6 +146,16 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
   deterministic flag layer was written *after* these 88 results had been seen, so its numbers below are in-sample.
   A fresh blind set is needed to measure it.
 
+### Blind set 2 (50 reports, pending author review)
+
+- Built to evaluate the frozen flag layer (tag `flag-layer-final`): **35 edge cases** covering all 22 categories
+  (13 extra on the most safety-relevant ones) and **15 routine reports** to measure false alarms.
+- Text by Groq `qwen/qwen3.8-27b` with new personas and scenarios (`generate_blind_set2.py`); every report is
+  checked against blind set 1 for similarity (difflib ratio ≤ 0.6, highest 0.52).
+- Labels drafted by Claude in the set-1 format (`data/blind2_review.csv`); any `uncertain` row expects
+  `low_confidence`; distress counts as `red_flag`; the new `other_symptom` / `prompt_injection` types are used
+  where they apply. **No parser has been run on these 50 reports**; that happens only after the author's review.
+
 ### Evaluation results (rules vs. LLM prompt v2)
 
 Full tables and every error: [`eval/results.md`](eval/results.md). Raw counts, small samples, no significance
