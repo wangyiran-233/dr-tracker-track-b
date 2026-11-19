@@ -1,12 +1,355 @@
-# Parser evaluation - gold set (latest prompt: v2)
+# Parser evaluation
 
 Raw counts are shown next to every percentage. Samples are small (one report moves a metric by several points), so no statistical significance is claimed.
 
-LLM model: openai/gpt-oss-120b. Columns for older prompt versions are re-scored from cached responses, so they match their original runs.
+LLM model: openai/gpt-oss-120b, prompt v2 (frozen). Flag layer: `cinv/flag_layer.py`, frozen at git tag `flag-layer-final` before blind set 2 was written. All LLM output is read from `data/llm_cache.json`, so `python evaluate.py --offline` reproduces this file without an API key.
 
-Gold set: 30 reports (23 free text, 7 questionnaires). Questionnaire fields are parsed by deterministic rules in both columns; only their free-text comments differ.
+Contents: blind set 2 (the test result) and the main-dataset flag rate first; the two development sets (gold set, messy set) at the end.
 
-## Free-text reports (n=23)
+## Blind set 2 - fresh blind test (50 reports)
+
+50 new reports written for this test after the flag layer was frozen (git tag `flag-layer-final`): **35 edge cases** covering all 22 failure categories of the development messy set, with new personas and scenarios, and **15 routine reports** to measure false alarms. Text by Groq `qwen/qwen3.8-27b` (`generate_blind_set2.py`), a different model than the parser's; every report was checked against the development messy set for similarity (difflib ratio <= 0.6). Labels were drafted by AI and reviewed by the author before any parser ran (`data/blind2_review.csv`: 47 agreed, 3 revised). Prompt v2, the parsers and the flag rules were not changed after seeing these results, so every column is a blind number.
+
+Severity and medication rows are not labelled; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date. Review-flag precision and recall cover every labelled flag type, including `other_symptom` and `prompt_injection`, with the same rule in all three columns; `distress` counts as `red_flag`; `parser_disagreement` is never labelled, so it is left out of precision and recall (it still counts towards flag rate and wrong & unflagged).
+
+| Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
+|---|---|---|---|
+| Symptom rows - precision | 98% (54/55) | 99% (66/67) | 99% (66/67) |
+| Symptom rows - recall | 71% (54/76) | 87% (66/76) | 87% (66/76) |
+| Presence (present/absent/uncertain) | 93% (50/54) | 98% (65/66) | 98% (65/66) |
+| Episode count (min & max, where labelled) | 80% (20/25) | 97% (29/30) | 97% (29/30) |
+| Date (3 date categories only) | 29% (2/7) | 44% (4/9) | 44% (4/9) |
+| Review flags - precision | 100% (2/2) | 100% (5/5) | 75% (15/20) |
+| Review flags - recall | 7% (2/27) | 19% (5/27) | 56% (15/27) |
+| Red flags - recall (reports labelled red_flag) | 0% (0/5) | 40% (2/5) | 80% (4/5) |
+| Report fully correct (symptom rows) | 54% (27/50) | 72% (36/50) | 72% (36/50) |
+| Report fully correct - edge cases | 40% (14/35) | 66% (23/35) | 66% (23/35) |
+| Report fully correct - routine | 87% (13/15) | 87% (13/15) | 87% (13/15) |
+| Wrong & flagged (reports) | 2% (1/50) | 0% (0/50) | 20% (10/50) |
+| Wrong & unflagged (reports) - lower is better | 44% (22/50) | 28% (14/50) | 8% (4/50) |
+| Flag rate (reports with any flag) | 4% (2/50) | 10% (5/50) | 60% (30/50) |
+| Flag rate - edge cases | 6% (2/35) | 14% (5/35) | 80% (28/35) |
+| Flag rate - routine | 0% (0/15) | 0% (0/15) | 13% (2/15) |
+| False-alarm rate (fully correct reports that are flagged) | 4% (1/27) | 14% (5/36) | 56% (20/36) |
+| False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway) | 0% (0/16) | 0% (0/17) | 24% (4/17) |
+| False-alarm rate - routine (correct routine reports flagged; no routine report has a labelled flag) | 0% (0/13) | 0% (0/13) | 8% (1/13) |
+
+### By category (raw counts)
+
+| Category | n | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged | LLM prompt v2 + flag layer: correct | LLM prompt v2 + flag layer: wrong & unflagged |
+|---|---|---|---|---|---|---|---|
+| typos_phonetic_spelling | 2 | 0/2 | 2 | 1/2 | 1 | 1/2 | 0 |
+| slang_abbreviations | 2 | 0/2 | 2 | 2/2 | 0 | 2/2 | 0 |
+| vague_hedged_counts | 2 | 0/2 | 2 | 1/2 | 1 | 1/2 | 1 |
+| hedged_presence | 2 | 1/2 | 1 | 1/2 | 1 | 1/2 | 0 |
+| relative_severity | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| cycle_day_references | 2 | 0/2 | 2 | 0/2 | 2 | 0/2 | 0 |
+| multi_day_catch_up | 2 | 0/2 | 2 | 0/2 | 2 | 0/2 | 0 |
+| time_ambiguity | 2 | 1/2 | 1 | 1/2 | 1 | 1/2 | 0 |
+| unnamed_medication | 1 | 0/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| brand_names_misspellings | 2 | 1/2 | 1 | 2/2 | 0 | 2/2 | 0 |
+| second_hand_account | 2 | 1/2 | 1 | 1/2 | 1 | 1/2 | 0 |
+| negation_traps | 2 | 1/2 | 1 | 1/2 | 1 | 1/2 | 0 |
+| sarcasm_emotion | 1 | 0/1 | 1 | 0/1 | 1 | 0/1 | 1 |
+| pure_noise | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| unit_format_traps | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| out_of_schema_symptoms | 2 | 1/2 | 1 | 1/2 | 1 | 1/2 | 1 |
+| non_english_fragment | 2 | 0/2 | 2 | 2/2 | 0 | 2/2 | 0 |
+| overlong_rambling | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| duplicates_copy_paste | 1 | 0/1 | 1 | 1/1 | 0 | 1/1 | 0 |
+| prompt_injection | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| contact_details_in_text | 1 | 1/1 | 0 | 1/1 | 0 | 1/1 | 0 |
+| distress_not_symptom | 2 | 2/2 | 0 | 2/2 | 0 | 2/2 | 0 |
+| routine | 15 | 13/15 | 2 | 13/15 | 2 | 13/15 | 1 |
+
+### Wrong & unflagged - Rule baseline (22 reports)
+
+**B2_01** (typos_phonetic_spelling)  
+> wretched three times this afternoon but nothing came up. nor sea is moderate.
+
+- `MISSED     nausea present`
+- `WRONG      retching: count expected 3-3 got 1-None  evidence='wretched three times this afternoon'`
+
+**B2_02** (typos_phonetic_spelling)  
+> cant keep any flooids down since brekfast. stomach just hurting too bad
+
+- `MISSED     unable_to_keep_fluids present`
+- `FLAG MISSED other_symptom`
+- `FLAG MISSED red_flag`
+
+**B2_03** (slang_abbreviations)  
+> threw up twice before class no cap / nausea is mid rn / haven't eaten anything all day fr
+
+- `MISSED     appetite_loss present`
+- `WRONG      nausea: presence expected present got absent  evidence="threw up twice before class no cap\nnausea is mid rn\nhaven't eaten anything all day fr"`
+
+**B2_04** (slang_abbreviations)  
+> gg wp today. zero nausea, ate like a king. actual W day. no debs, just grinding. 555-0133
+
+- `MISSED     appetite_loss absent`
+- `WRONG      nausea: presence expected absent got present  evidence='zero nausea'`
+
+**B2_05** (vague_hedged_counts)  
+> hey it's mike. i was up the whole night bein a guard so i kept goin up to the bathroom. throwin up multiple times, prob between 2 and 4, honestly hard to keep track. just letting you know.
+
+- `MISSED     vomiting present n=2-4`
+- `FLAG MISSED low_confidence`
+
+**B2_06** (vague_hedged_counts)  
+> throwing up like a handful of times today and so nauseous. back in a sec twins are screaming bye
+
+- `WRONG      vomiting: count expected 2-None got 1-None  evidence='throwing up like a handful of times today and so nauseous.'`
+- `FLAG MISSED low_confidence`
+
+**B2_08** (hedged_presence)  
+> hey did i actually retch after coffee or was that just a weird coughing fit? honestly cant even tell lol. felt off but not enough to scare me yet.
+
+- `MISSED     nausea uncertain`
+- `WRONG      retching: presence expected uncertain got present  evidence='hey did i actually retch after coffee or was that just a weird coughing fit?'`
+- `FLAG MISSED low_confidence`
+
+**B2_10** (cycle_day_references)  
+> cycle 3 day 2: threw up twice today. day 1 was totally fine with no sickness at all.
+
+- `MISSED     vomiting absent n=0-0`
+
+**B2_11** (cycle_day_references)  
+> Day 3 and still feeling sick since I woke up. Haven't thrown up yet but my stomach is just churning. Taxi's in the shop tonight so I'm just staying put.
+
+- `MISSED     nausea present`
+- `MISSED     vomiting absent n=0-0`
+
+**B2_12** (multi_day_catch_up)  
+> sorry for the late update, stuck at the airport. monday i was pretty nauseous in the evening and tuesday i threw up once after breakfast. wednesday was actually fine but today i just have zero appetite. 555-0192
+
+- `MISSED     appetite_loss present`
+- `WRONG      nausea: date expected 2026-10-19 got 2026-10-22  evidence='monday i was pretty nauseous in the evening and tuesday i threw up once after breakfast.'`
+- `WRONG      vomiting: date expected 2026-10-20 got 2026-10-22  evidence='monday i was pretty nauseous in the evening and tuesday i threw up once after breakfast.'`
+
+**B2_13** (multi_day_catch_up)  
+> Just catching up now: / 1. Sunday: Vomit x2. / 2. Monday: Queasy, no vomit. / 3. Tuesday: Feels fine.
+
+- `MISSED     vomiting absent n=0-0`
+- `WRONG      vomiting: count expected 2-2 got 1-None, date expected 2026-10-18 got 2026-10-20  evidence='Vomit x2.'`
+- `WRONG      nausea: date expected 2026-10-19 got 2026-10-20  evidence='Queasy'`
+
+**B2_15** (time_ambiguity)  
+> Hey, just wanted to log that I was pretty queasy a few days back. Can't remember if it was Wednesday or Thursday, honestly. That's it.
+
+- `WRONG      nausea: date expected 2026-09-30|2026-10-01 got 2026-10-05  evidence='just wanted to log that I was pretty queasy a few days back.'`
+- `FLAG MISSED low_confidence`
+
+**B2_17** (brand_names_misspellings)  
+> took the ondanseton and dexamethazone this am but still puked once. felt ok after.
+
+- `MISSED     vomiting present n=1-1`
+- `FLAG MISSED unmapped_medication`
+
+**B2_20** (second_hand_account)  
+> hey it's my roommate typing this. she was up in the bathroom retching twice last night but she swears she doesn't feel sick at all so i'm not sure what to say
+
+- `MISSED     nausea absent`
+- `FLAG MISSED low_confidence`
+
+**B2_22** (negation_traps)  
+> no, I did NOT manage to keep the water down. all day. "keep the water down" is in bold for a reason.
+
+- `MISSED     unable_to_keep_fluids present`
+- `FLAG MISSED red_flag`
+
+**B2_23** (sarcasm_emotion)  
+> stomach is doing gymnastics again. up and down twice. chef's kiss.
+
+- `MISSED     vomiting uncertain`
+- `MISSED     nausea uncertain`
+- `FLAG MISSED low_confidence`
+
+**B2_26** (out_of_schema_symptoms)  
+> Hey, its me. My knuckles are killing me and my fingertips go all numb like pins and needles. Also got a couple of bad sores in my mouth so i cant eat much at all.
+
+- `SPURIOUS   appetite_loss present 2026-10-17 unknown sev=None  evidence='Also got a couple of bad sores in my mouth so i cant eat much at all.'`
+- `FLAG MISSED other_symptom`
+
+**B2_28** (non_english_fragment)  
+> Vomitei 3 vezes hoje e sem apetite nenhum
+
+- `MISSED     appetite_loss present`
+- `WRONG      vomiting: count expected 3-3 got 1-None  evidence='Vomitei 3 vezes hoje e sem apetite nenhum'`
+- `FLAG MISSED low_confidence`
+
+**B2_29** (non_english_fragment)  
+> Heute leider richtig übel, so mega nach. Aber ich hab nicht erbrochen, mir ist nur übel. Hope it gets better.
+
+- `MISSED     nausea present`
+- `MISSED     vomiting absent n=0-0`
+- `FLAG MISSED low_confidence`
+
+**B2_31** (duplicates_copy_paste)  
+> appetite gone, nauseous after lunch. appetite gone, nauseous after lunch.
+
+- `MISSED     appetite_loss present`
+- `FLAG MISSED duplicate_report`
+
+**B2_44** (routine)  
+> Haven't felt good all day with this bad nausea. Threw up three times already.
+
+- `WRONG      nausea: presence expected present got absent  evidence="Haven't felt good all day with this bad nausea."`
+- `WRONG      vomiting: count expected 3-3 got 1-None  evidence='Threw up three times already.'`
+
+**B2_45** (routine)  
+> Skipped breakfast this morning. Feeling a little nauseous.
+
+- `MISSED     appetite_loss present`
+
+
+### Wrong & unflagged - LLM prompt v2 (14 reports)
+
+**B2_01** (typos_phonetic_spelling)  
+> wretched three times this afternoon but nothing came up. nor sea is moderate.
+
+- `MISSED     nausea present`
+
+**B2_06** (vague_hedged_counts)  
+> throwing up like a handful of times today and so nauseous. back in a sec twins are screaming bye
+
+- `WRONG      vomiting: count expected 2-None got 1-None  evidence='throwing up like a handful of times today'`
+- `FLAG MISSED low_confidence`
+
+**B2_08** (hedged_presence)  
+> hey did i actually retch after coffee or was that just a weird coughing fit? honestly cant even tell lol. felt off but not enough to scare me yet.
+
+- `MISSED     nausea uncertain`
+- `FLAG MISSED low_confidence`
+
+**B2_10** (cycle_day_references)  
+> cycle 3 day 2: threw up twice today. day 1 was totally fine with no sickness at all.
+
+- `MISSED     vomiting absent n=0-0`
+
+**B2_11** (cycle_day_references)  
+> Day 3 and still feeling sick since I woke up. Haven't thrown up yet but my stomach is just churning. Taxi's in the shop tonight so I'm just staying put.
+
+- `MISSED     nausea present`
+
+**B2_12** (multi_day_catch_up)  
+> sorry for the late update, stuck at the airport. monday i was pretty nauseous in the evening and tuesday i threw up once after breakfast. wednesday was actually fine but today i just have zero appetite. 555-0192
+
+- `WRONG      nausea: date expected 2026-10-19 got 2026-10-17  evidence='pretty nauseous in the evening'`
+- `WRONG      vomiting: date expected 2026-10-20 got 2026-10-18  evidence='threw up once after breakfast'`
+
+**B2_13** (multi_day_catch_up)  
+> Just catching up now: / 1. Sunday: Vomit x2. / 2. Monday: Queasy, no vomit. / 3. Tuesday: Feels fine.
+
+- `WRONG      vomiting: date expected 2026-10-18 got 2026-10-16  evidence='Vomit x2'`
+- `WRONG      nausea: date expected 2026-10-19 got 2026-10-17  evidence='Queasy'`
+- `WRONG      vomiting: date expected 2026-10-19 got 2026-10-17  evidence='no vomit'`
+
+**B2_15** (time_ambiguity)  
+> Hey, just wanted to log that I was pretty queasy a few days back. Can't remember if it was Wednesday or Thursday, honestly. That's it.
+
+- `MISSED     nausea present`
+- `FLAG MISSED low_confidence`
+
+**B2_20** (second_hand_account)  
+> hey it's my roommate typing this. she was up in the bathroom retching twice last night but she swears she doesn't feel sick at all so i'm not sure what to say
+
+- `MISSED     nausea absent`
+- `FLAG MISSED low_confidence`
+
+**B2_21** (negation_traps)  
+> It isn't that I simply can't eat, the appetite is just... absent. I haven't vomited, not a single time, but I wouldn't say I'm free of nausea.
+
+- `WRONG      nausea: presence expected present got uncertain  evidence="I wouldn't say I'm free of nausea"`
+
+**B2_23** (sarcasm_emotion)  
+> stomach is doing gymnastics again. up and down twice. chef's kiss.
+
+- `MISSED     vomiting uncertain`
+- `MISSED     nausea uncertain`
+- `FLAG MISSED low_confidence`
+
+**B2_26** (out_of_schema_symptoms)  
+> Hey, its me. My knuckles are killing me and my fingertips go all numb like pins and needles. Also got a couple of bad sores in my mouth so i cant eat much at all.
+
+- `SPURIOUS   appetite_loss present 2026-10-17 unknown sev=None  evidence='cant eat much at all'`
+- `FLAG MISSED other_symptom`
+
+**B2_37** (routine)  
+> No nausea today and I ate a normal breakfast.
+
+- `MISSED     appetite_loss absent`
+
+**B2_45** (routine)  
+> Skipped breakfast this morning. Feeling a little nauseous.
+
+- `MISSED     appetite_loss present`
+
+
+### Wrong & unflagged - LLM prompt v2 + flag layer (4 reports)
+
+**B2_06** (vague_hedged_counts)  
+> throwing up like a handful of times today and so nauseous. back in a sec twins are screaming bye
+
+- `WRONG      vomiting: count expected 2-None got 1-None  evidence='throwing up like a handful of times today'`
+- `FLAG MISSED low_confidence`
+
+**B2_23** (sarcasm_emotion)  
+> stomach is doing gymnastics again. up and down twice. chef's kiss.
+
+- `MISSED     vomiting uncertain`
+- `MISSED     nausea uncertain`
+- `FLAG MISSED low_confidence`
+
+**B2_26** (out_of_schema_symptoms)  
+> Hey, its me. My knuckles are killing me and my fingertips go all numb like pins and needles. Also got a couple of bad sores in my mouth so i cant eat much at all.
+
+- `SPURIOUS   appetite_loss present 2026-10-17 unknown sev=None  evidence='cant eat much at all'`
+- `FLAG MISSED other_symptom`
+
+**B2_45** (routine)  
+> Skipped breakfast this morning. Feeling a little nauseous.
+
+- `MISSED     appetite_loss present`
+
+
+### Wrong & flagged - Rule baseline (1 reports)
+
+- **B2_16** (unnamed_medication; flags: unmapped_medication): `MISSED     nausea present`
+
+### Wrong & flagged - LLM prompt v2 (0 reports)
+
+
+### Wrong & flagged - LLM prompt v2 + flag layer (10 reports)
+
+- **B2_01** (typos_phonetic_spelling; flags: parser_disagreement): `MISSED     nausea present`
+- **B2_08** (hedged_presence; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`
+- **B2_10** (cycle_day_references; flags: low_confidence): `MISSED     vomiting absent n=0-0`; `FLAG SPURIOUS low_confidence`
+- **B2_11** (cycle_day_references; flags: low_confidence, parser_disagreement): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
+- **B2_12** (multi_day_catch_up; flags: parser_disagreement): `WRONG      nausea: date expected 2026-10-19 got 2026-10-17  evidence='pretty nauseous in the evening'`; `WRONG      vomiting: date expected 2026-10-20 got 2026-10-18  evidence='threw up once after breakfast'`
+- **B2_13** (multi_day_catch_up; flags: parser_disagreement): `WRONG      vomiting: date expected 2026-10-18 got 2026-10-16  evidence='Vomit x2'`; `WRONG      nausea: date expected 2026-10-19 got 2026-10-17  evidence='Queasy'`; `WRONG      vomiting: date expected 2026-10-19 got 2026-10-17  evidence='no vomit'`
+- **B2_15** (time_ambiguity; flags: parser_disagreement): `MISSED     nausea present`; `FLAG MISSED low_confidence`
+- **B2_20** (second_hand_account; flags: low_confidence): `MISSED     nausea absent`
+- **B2_21** (negation_traps; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected present got uncertain  evidence="I wouldn't say I'm free of nausea"`; `FLAG SPURIOUS low_confidence`
+- **B2_37** (routine; flags: parser_disagreement): `MISSED     appetite_loss absent`
+
+### Red flags missed - LLM prompt v2 + flag layer (1 report)
+
+- **B2_35** (distress_not_symptom): Honestly not sure I want to keep going with all this. What's the use at my age. (flags raised: low_confidence)
+
+## Flag rate - main dataset (all 184 reports; nurse workload)
+
+Every report in the synthetic dataset, parsed in submission order with cross-report checks (duplicates, conflicts, corrections). Not labelled, so only the share of reports a nurse has to open is shown. Older prompt versions are left out.
+
+| Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
+|---|---|---|---|
+| Flag rate (reports with any flag) | 3% (6/184) | 15% (27/184) | 17% (32/184) |
+| Flag rate, warning or urgent (report set to needs_review) | 2% (3/184) | 14% (25/184) | 16% (30/184) |
+
+## Development set: gold set (30 reports; used to tune the prompt)
+
+30 reports (23 free text, 7 questionnaires). Prompt v1 -> v2 changes were made after looking at errors on this set, so it is a development set, not a test. Columns for older prompt versions are re-scored from cached responses, so they match their original runs. Questionnaire fields are parsed by deterministic rules in every column; only their free-text comments differ. Flag precision / recall here cover the flag types labelled in the gold set (no `low_confidence`, `other_symptom` or `prompt_injection` labels).
+
+### Free-text reports (n=23)
 
 | Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|---|
@@ -31,7 +374,7 @@ Symptom detection F1: Rule baseline 0.99, LLM prompt v1 0.99, LLM prompt v2 0.99
 
 Reports where the parser produced no usable output (scored as all-missed): Rule baseline 0, LLM prompt v1 0, LLM prompt v2 0, LLM prompt v2 + flag layer 0
 
-## Questionnaire reports (n=7)
+### Questionnaire reports (n=7)
 
 | Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|---|
@@ -51,7 +394,7 @@ Reports where the parser produced no usable output (scored as all-missed): Rule 
 | Wrong & flagged (reports; goes to the review queue) | 0% (0/7) | 0% (0/7) | 0% (0/7) | 0% (0/7) |
 | Wrong & unflagged (reports; reaches the chart unseen) - lower is better | 0% (0/7) | 0% (0/7) | 0% (0/7) | 0% (0/7) |
 
-## Flag rate and false alarms - gold set (all 30 reports)
+### Flag rate and false alarms - gold set (all 30 reports)
 
 Flag rate = reports with at least one flag of any type (including info). False-alarm rate = fully correct reports that are flagged anyway. Routine = generator-labelled, tricky = hand-annotated.
 
@@ -62,24 +405,111 @@ Flag rate = reports with at least one flag of any type (including info). False-a
 | False-alarm rate - routine (correct reports flagged) | 0% (0/12) | 0% (0/11) | 0% (0/10) | 0% (0/10) |
 | False-alarm rate - tricky (correct reports flagged) | 31% (4/13) | 21% (3/14) | 33% (5/15) | 67% (10/15) |
 
-## Flag rate - main dataset (all 184 reports; nurse workload)
+### Gold set errors - Rule baseline (6 reports with at least one error)
 
-Every report in the synthetic dataset, parsed in submission order with cross-report checks (duplicates, conflicts, corrections). Not labelled, so only the share of reports a nurse has to open is shown. Older prompt versions are left out.
+**R0003** (free_text; vomited_up_dose)  
+> Took my ondansetron at 8 this morning but threw it up about 20 minutes later. Took another at 10 and that one stayed down.
 
-| Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
-|---|---|---|---|
-| Flag rate (reports with any flag) | 3% (6/184) | 15% (27/184) | 17% (32/184) |
-| Flag rate, warning or urgent (report set to needs_review) | 2% (3/184) | 14% (25/184) | 16% (30/184) |
+- `WRONG      vomiting: part_of_day expected morning got unknown, count expected 1-1 got 1-None  evidence='threw it up about 20 minutes later.'`
 
-## Blind messy set (now a development set)
+**R0009** (free_text; correction)  
+> Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.
+
+- `MISSED     vomiting present 2026-09-10 unknown n=3-3`
+- `CORRECTION not linked to R0007`
+
+**R0067** (free_text; unmapped_medication)  
+> Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.
+
+- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='nausea eased after an hour.'`
+
+**R0087** (free_text; negation, hedged_severity)  
+> No throwing up today. Nausea pretty much gone, maybe a tiny bit after breakfast.
+
+- `WRONG      nausea: presence expected present got absent, part_of_day expected morning got unknown, severity expected 1 got 0  evidence='Nausea pretty much gone'`
+
+**R0089** (free_text; implausible_value)  
+> Threw up like a hundred times today, it just would not stop.
+
+- `FLAG MISSED implausible_value`
+
+**R0117** (free_text; severity_mismatch, red_flag)  
+> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
+
+- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got morning  evidence="I haven't been able to keep any water down since this morning."`
+
+### Gold set errors - LLM prompt v1 (6 reports with at least one error)
+
+**R0009** (free_text; correction)  
+> Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.
+
+- `MISSED     vomiting present 2026-09-10 unknown n=3-3`
+- `CORRECTION not linked to R0007`
+
+**R0026** (free_text; despite_medication, brand_name)  
+> Still really nauseous even after taking Zofran at lunch. No vomiting.
+
+- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='Still really nauseous even after taking Zofran'`
+
+**R0043** (free_text; routine, evening)  
+> Feeling pretty good today, no nausea or vomiting.
+
+- `WRONG      nausea: part_of_day expected unknown got evening  evidence='no nausea'`
+- `WRONG      vomiting: part_of_day expected unknown got evening  evidence='no nausea or vomiting'`
+
+**R0067** (free_text; unmapped_medication)  
+> Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.
+
+- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='nausea eased after an hour'`
+
+**R0089** (free_text; implausible_value)  
+> Threw up like a hundred times today, it just would not stop.
+
+- `FLAG MISSED implausible_value`
+
+**R0117** (free_text; severity_mismatch, red_flag)  
+> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
+
+- `WRONG      nausea: part_of_day expected unknown got evening  evidence='Nausea is mild'`
+- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got unknown  evidence="haven't been able to keep any water down"`
+
+### Gold set errors - LLM prompt v2 (5 reports with at least one error)
+
+**R0026** (free_text; despite_medication, brand_name)  
+> Still really nauseous even after taking Zofran at lunch. No vomiting.
+
+- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='still really nauseous even after taking Zofran'`
+
+**R0043** (free_text; routine, evening)  
+> Feeling pretty good today, no nausea or vomiting.
+
+- `MISSED     vomiting absent 2026-09-17 unknown n=0-0`
+- `DROPPED    symptom vomiting: evidence not in text: 'no vomiting'`
+
+**R0055** (free_text; weight_in_text)  
+> Weighed myself this morning: 72.1 kg. Appetite still poor.
+
+- `WRONG      appetite_loss: part_of_day expected unknown got morning  evidence='Appetite still poor'`
+
+**R0117** (free_text; severity_mismatch, red_flag)  
+> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
+
+- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got morning  evidence="haven't been able to keep any water down since this morning"`
+
+**R0175** (free_text; routine, next_morning)  
+> Yesterday was a good day, no nausea or vomiting. Appetite is okay.
+
+- `WRONG      appetite_loss: date expected 2026-10-18 got 2026-10-19  evidence='Appetite is okay'`
+
+## Development set: messy set (88 reports; used to design the flag layer)
 
 88 reports (22 failure categories x 4), written by a different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran (`data/blind_review.csv`).
 
-**This is now a development set, not a blind test.** The rule baseline and LLM prompt v2 columns were scored blind (prompt v2 is unchanged). The deterministic flag layer (`cinv/flag_layer.py`) was written *after* these results and these 88 reports had been seen, so its column is an in-sample number and overstates how well it generalises; a fresh blind set is needed to measure it.
+**Development set, not a blind test.** The rule baseline and LLM prompt v2 columns were first scored blind (prompt v2 is unchanged), but the deterministic flag layer (`cinv/flag_layer.py`) was designed on these 88 reports after their results had been seen, so its column is in-sample. The blind number for the flag layer is blind set 2 (top of this file).
 
 **Experiment, rejected:** a narrower `parser_disagreement` (only rules-only symptoms, present vs absent, or non-overlapping counts; LLM-only symptoms ignored). Narrow vs final: wrong & unflagged 7/88 vs 3/88, flag rate 61/88 vs 68/88, false alarms 41/61 vs 44/61, gold tricky flag rate 10/18 vs 11/18, main dataset 31/184 vs 32/184. It let 4 more errors through unflagged (BL04, BL30, BL46, BL48) to save 3 false alarms with almost the same workload, so the broader (safer) rule is the final, frozen version.
 
-Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
+Scored exactly like blind set 2. These labels contain no `other_symptom` or `prompt_injection` flags, so such predicted flags count as spurious here.
 
 | Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|
@@ -88,42 +518,44 @@ Severity and medication rows are not labelled here; dates are scored only for th
 | Presence (present/absent/uncertain) | 88% (66/75) | 92% (102/111) | 92% (102/111) |
 | Episode count (min & max, where labelled) | 76% (29/38) | 88% (46/52) | 88% (46/52) |
 | Date (3 date categories only) | 43% (6/14) | 76% (13/17) | 76% (13/17) |
-| Review flags - precision | 80% (4/5) | 92% (11/12) | 71% (42/59) |
+| Review flags - precision | 80% (4/5) | 92% (11/12) | 61% (42/69) |
 | Review flags - recall | 7% (4/61) | 18% (11/61) | 69% (42/61) |
 | Red flags - recall (reports labelled red_flag) | 22% (2/9) | 44% (4/9) | 100% (9/9) |
 | Report fully correct (symptom rows) | 40% (35/88) | 69% (61/88) | 69% (61/88) |
+| Report fully correct - edge cases | 40% (35/88) | 69% (61/88) | 69% (61/88) |
 | Wrong & flagged (reports) | 3% (3/88) | 3% (3/88) | 27% (24/88) |
 | Wrong & unflagged (reports) - lower is better | 57% (50/88) | 27% (24/88) | 3% (3/88) |
 | Flag rate (reports with any flag) | 6% (5/88) | 14% (12/88) | 77% (68/88) |
+| Flag rate - edge cases | 6% (5/88) | 14% (12/88) | 77% (68/88) |
 | False-alarm rate (fully correct reports that are flagged) | 6% (2/35) | 15% (9/61) | 72% (44/61) |
 | False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway) | 0% (0/16) | 0% (0/25) | 48% (12/25) |
 
-### By category (raw counts, 4 reports each)
+### By category (raw counts)
 
-| Category | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged | LLM prompt v2 + flag layer: correct | LLM prompt v2 + flag layer: wrong & unflagged |
-|---|---|---|---|---|---|---|
-| typos_phonetic_spelling | 0/4 | 4 | 1/4 | 2 | 1/4 | 0 |
-| slang_abbreviations | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
-| vague_hedged_counts | 0/4 | 4 | 2/4 | 2 | 2/4 | 1 |
-| hedged_presence | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
-| relative_severity | 2/4 | 2 | 3/4 | 1 | 3/4 | 1 |
-| cycle_day_references | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
-| multi_day_catch_up | 0/4 | 4 | 3/4 | 1 | 3/4 | 1 |
-| time_ambiguity | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
-| unnamed_medication | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
-| brand_names_misspellings | 3/4 | 1 | 3/4 | 0 | 3/4 | 0 |
-| second_hand_account | 1/4 | 3 | 1/4 | 3 | 1/4 | 0 |
-| negation_traps | 1/4 | 2 | 2/4 | 1 | 2/4 | 0 |
-| sarcasm_emotion | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
-| pure_noise | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
-| unit_format_traps | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
-| out_of_schema_symptoms | 2/4 | 1 | 4/4 | 0 | 4/4 | 0 |
-| non_english_fragment | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
-| overlong_rambling | 1/4 | 2 | 2/4 | 2 | 2/4 | 0 |
-| duplicates_copy_paste | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
-| prompt_injection | 1/4 | 3 | 4/4 | 0 | 4/4 | 0 |
-| contact_details_in_text | 3/4 | 1 | 4/4 | 0 | 4/4 | 0 |
-| distress_not_symptom | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
+| Category | n | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged | LLM prompt v2 + flag layer: correct | LLM prompt v2 + flag layer: wrong & unflagged |
+|---|---|---|---|---|---|---|---|
+| typos_phonetic_spelling | 4 | 0/4 | 4 | 1/4 | 2 | 1/4 | 0 |
+| slang_abbreviations | 4 | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
+| vague_hedged_counts | 4 | 0/4 | 4 | 2/4 | 2 | 2/4 | 1 |
+| hedged_presence | 4 | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
+| relative_severity | 4 | 2/4 | 2 | 3/4 | 1 | 3/4 | 1 |
+| cycle_day_references | 4 | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| multi_day_catch_up | 4 | 0/4 | 4 | 3/4 | 1 | 3/4 | 1 |
+| time_ambiguity | 4 | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| unnamed_medication | 4 | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
+| brand_names_misspellings | 4 | 3/4 | 1 | 3/4 | 0 | 3/4 | 0 |
+| second_hand_account | 4 | 1/4 | 3 | 1/4 | 3 | 1/4 | 0 |
+| negation_traps | 4 | 1/4 | 2 | 2/4 | 1 | 2/4 | 0 |
+| sarcasm_emotion | 4 | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
+| pure_noise | 4 | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
+| unit_format_traps | 4 | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
+| out_of_schema_symptoms | 4 | 2/4 | 1 | 4/4 | 0 | 4/4 | 0 |
+| non_english_fragment | 4 | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| overlong_rambling | 4 | 1/4 | 2 | 2/4 | 2 | 2/4 | 0 |
+| duplicates_copy_paste | 4 | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
+| prompt_injection | 4 | 1/4 | 3 | 4/4 | 0 | 4/4 | 0 |
+| contact_details_in_text | 4 | 3/4 | 1 | 4/4 | 0 | 4/4 | 0 |
+| distress_not_symptom | 4 | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
 
 ### Wrong & unflagged - Rule baseline (50 reports)
 
@@ -632,7 +1064,7 @@ Severity and medication rows are not labelled here; dates are scored only for th
 - **BL30** (unit_format_traps; flags: parser_disagreement): `WRONG      vomiting: presence expected uncertain got present  evidence='up and down once after'`; `FLAG MISSED low_confidence`; `FLAG MISSED unmapped_medication`
 - **BL33** (non_english_fragment; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`
 - **BL34** (non_english_fragment; flags: low_confidence, parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='mei you chi dongxi'`
-- **BL35** (overlong_rambling; flags: low_confidence, other_symptom): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
+- **BL35** (overlong_rambling; flags: low_confidence, other_symptom): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`; `FLAG SPURIOUS other_symptom`
 - **BL36** (overlong_rambling; flags: low_confidence, parser_disagreement): `MISSED     vomiting absent n=0-0`; `MISSED     appetite_loss present`; `FLAG SPURIOUS low_confidence`
 - **BL46** (typos_phonetic_spelling; flags: parser_disagreement): `SPURIOUS   appetite_loss absent 2026-09-11 unknown sev=0  evidence='ate a litle tost 👍'`
 - **BL48** (slang_abbreviations; flags: parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='appetite meh'`; `FLAG MISSED low_confidence`
@@ -643,98 +1075,5 @@ Severity and medication rows are not labelled here; dates are scored only for th
 - **BL66** (second_hand_account; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-2 got 1-1  evidence='only once'`; `FLAG MISSED intra_report_conflict`
 - **BL67** (negation_traps; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`; `FLAG SPURIOUS low_confidence`
 
-## Errors - Rule baseline (6 reports with at least one error)
+### Red flags missed - LLM prompt v2 + flag layer (0 reports)
 
-**R0003** (free_text; vomited_up_dose)  
-> Took my ondansetron at 8 this morning but threw it up about 20 minutes later. Took another at 10 and that one stayed down.
-
-- `WRONG      vomiting: part_of_day expected morning got unknown, count expected 1-1 got 1-None  evidence='threw it up about 20 minutes later.'`
-
-**R0009** (free_text; correction)  
-> Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.
-
-- `MISSED     vomiting present 2026-09-10 unknown n=3-3`
-- `CORRECTION not linked to R0007`
-
-**R0067** (free_text; unmapped_medication)  
-> Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.
-
-- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='nausea eased after an hour.'`
-
-**R0087** (free_text; negation, hedged_severity)  
-> No throwing up today. Nausea pretty much gone, maybe a tiny bit after breakfast.
-
-- `WRONG      nausea: presence expected present got absent, part_of_day expected morning got unknown, severity expected 1 got 0  evidence='Nausea pretty much gone'`
-
-**R0089** (free_text; implausible_value)  
-> Threw up like a hundred times today, it just would not stop.
-
-- `FLAG MISSED implausible_value`
-
-**R0117** (free_text; severity_mismatch, red_flag)  
-> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
-
-- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got morning  evidence="I haven't been able to keep any water down since this morning."`
-
-## Errors - LLM prompt v1 (6 reports with at least one error)
-
-**R0009** (free_text; correction)  
-> Correction to yesterday: it was actually 3 times, not once. I was too wiped out to remember.
-
-- `MISSED     vomiting present 2026-09-10 unknown n=3-3`
-- `CORRECTION not linked to R0007`
-
-**R0026** (free_text; despite_medication, brand_name)  
-> Still really nauseous even after taking Zofran at lunch. No vomiting.
-
-- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='Still really nauseous even after taking Zofran'`
-
-**R0043** (free_text; routine, evening)  
-> Feeling pretty good today, no nausea or vomiting.
-
-- `WRONG      nausea: part_of_day expected unknown got evening  evidence='no nausea'`
-- `WRONG      vomiting: part_of_day expected unknown got evening  evidence='no nausea or vomiting'`
-
-**R0067** (free_text; unmapped_medication)  
-> Took the little pill that melts on my tongue around 2pm, nausea eased after an hour.
-
-- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='nausea eased after an hour'`
-
-**R0089** (free_text; implausible_value)  
-> Threw up like a hundred times today, it just would not stop.
-
-- `FLAG MISSED implausible_value`
-
-**R0117** (free_text; severity_mismatch, red_flag)  
-> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
-
-- `WRONG      nausea: part_of_day expected unknown got evening  evidence='Nausea is mild'`
-- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got unknown  evidence="haven't been able to keep any water down"`
-
-## Errors - LLM prompt v2 (5 reports with at least one error)
-
-**R0026** (free_text; despite_medication, brand_name)  
-> Still really nauseous even after taking Zofran at lunch. No vomiting.
-
-- `WRONG      nausea: part_of_day expected afternoon got unknown  evidence='still really nauseous even after taking Zofran'`
-
-**R0043** (free_text; routine, evening)  
-> Feeling pretty good today, no nausea or vomiting.
-
-- `MISSED     vomiting absent 2026-09-17 unknown n=0-0`
-- `DROPPED    symptom vomiting: evidence not in text: 'no vomiting'`
-
-**R0055** (free_text; weight_in_text)  
-> Weighed myself this morning: 72.1 kg. Appetite still poor.
-
-- `WRONG      appetite_loss: part_of_day expected unknown got morning  evidence='Appetite still poor'`
-
-**R0117** (free_text; severity_mismatch, red_flag)  
-> Nausea is mild I guess, but I haven't been able to keep any water down since this morning. Threw up 4 times.
-
-- `WRONG      unable_to_keep_fluids: part_of_day expected all_day got morning  evidence="haven't been able to keep any water down since this morning"`
-
-**R0175** (free_text; routine, next_morning)  
-> Yesterday was a good day, no nausea or vomiting. Appetite is okay.
-
-- `WRONG      appetite_loss: date expected 2026-10-18 got 2026-10-19  evidence='Appetite is okay'`

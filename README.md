@@ -110,11 +110,14 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
     (day N, the other day, "or was that yesterday").
   - `parser_disagreement`: the keyword-rule parser and the LLM disagree on symptoms, presence or counts
     (any difference, including a symptom found only by the LLM).
-  - **The rules are frozen as the final version**; any change needs a fresh blind set to measure it.
   - `distress` (scared, can't do this, give up, 😭 …): urgent, shown as a red flag.
   - `other_symptom`: complaints outside the schema (fever, diarrhea, constipation, hair loss, fatigue, pain);
     fever also raises a `red_flag`.
   - `prompt_injection`: "ignore previous instructions", "SYSTEM:", "admin mode", JSON-like text.
+- **The rules are frozen** (git tag `flag-layer-final`); any change needs a fresh blind set to measure it.
+- **Cost of the flag layer** (measured, see below): flag rate **60% (30/50)** on blind set 2, which is mostly messy
+  text; **17% (32/184)** on the everyday main dataset, up from 15% (27 → 32 reports) without the layer; on routine
+  reports in blind set 2, only **1 of 13** correct reports is flagged by mistake.
 - Questionnaires are parsed fully deterministically. A keyword-rule parser is both the baseline and the per-report
   fallback.
 
@@ -128,104 +131,54 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
 - **15 hand-written tricky cases (18 reports)** cover vague counts, conflicts, corrections, a vomited-up dose,
   questionnaire vs. comment disagreement, and more.
 
-### Gold set (30 reports)
+### Gold set (30 reports): development set
 
+- **Used to tune the prompt** (v1 → v2 changes target errors seen here), so it is a development set, not a test.
 - 12 routine reports: labels come straight from the generator.
 - 18 tricky reports: **AI drafted the labels, the author reviewed each one**: **16 agreed, 2 revised**
   (`data/gold_review.csv`). Both revisions were questionnaire PRN drugs labelled as patient-stated when they were
   inferred, which led to an explicit *inferred vs. stated* field.
 
-### Blind messy set (88 reports)
+### Blind set 2 (50 reports): the test
 
-- 22 failure categories × 4 (typos, slang, hedging, second-hand accounts, emoji, non-English, distress, …).
-- Text written by a **different model** (Groq `qwen/qwen3.8-27b`) so the parser's model never writes its own
-  test set; label drafts by Claude.
-- **The author reviewed all 88 labels and revised 9 before any parser ran** (`data/blind_review.csv`). The prompt
-  was not changed after seeing the results.
-- **It is now a development set, not a blind test.** The rule baseline and prompt v2 were scored blind, but the
-  deterministic flag layer was written *after* these 88 results had been seen, so its numbers below are in-sample.
-  A fresh blind set is needed to measure it.
+- The flag rules were designed on an earlier 88-report development set and frozen (git tag `flag-layer-final`)
+  before blind set 2 was written.
+- **35 edge cases** covering 22 failure categories (typos, slang, hedging, second-hand accounts, emoji,
+  non-English, distress, prompt injection, …) and **15 routine reports** to measure false alarms.
+- Text written by a **different model** (Groq `qwen/qwen3.8-27b`, `generate_blind_set2.py`) with new personas and
+  scenarios, so the parser's model never writes its own test set; every report was checked for similarity against
+  the development reports (difflib ratio ≤ 0.6).
+- Label drafts by Claude; **the author reviewed all 50 before any parser ran: 47 agreed, 3 revised**
+  (`data/blind2_review.csv`). Nothing (prompt, parsers, flag rules) was changed after seeing the results.
 
-### Blind set 2 (50 reports, pending author review)
+### Evaluation results on blind set 2
 
-- Built to evaluate the frozen flag layer (tag `flag-layer-final`): **35 edge cases** covering all 22 categories
-  (13 extra on the most safety-relevant ones) and **15 routine reports** to measure false alarms.
-- Text by Groq `qwen/qwen3.8-27b` with new personas and scenarios (`generate_blind_set2.py`); every report is
-  checked against blind set 1 for similarity (difflib ratio ≤ 0.6, highest 0.52).
-- Labels drafted by Claude in the set-1 format (`data/blind2_review.csv`); any `uncertain` row expects
-  `low_confidence`; distress counts as `red_flag`; the new `other_symptom` / `prompt_injection` types are used
-  where they apply. **No parser has been run on these 50 reports**; that happens only after the author's review.
+Full tables, every error and the development-set results: [`eval/results.md`](eval/results.md). Raw counts, small
+samples, no significance claimed.
 
-### Evaluation results (rules vs. LLM prompt v2)
-
-Full tables and every error: [`eval/results.md`](eval/results.md). Raw counts, small samples, no significance
-claimed.
-
-**Gold set, free text (n = 23)**
-
-| | Rule baseline | LLM v2 |
-|---|---|---|
-| Presence · count · severity | 38/39 · 14/15 · 17/18 | 39/39 · 15/15 · 18/18 |
-| Report fully correct — tricky · routine | 11/16 · 7/7 | 13/16 · 5/7 |
-| Review-flag recall | 4/5 | 5/5 |
-| **Wrong & unflagged** | **3/23** | **3/23** |
-
-Questionnaires (n = 7): 100% on every field for both (deterministic).
-
-Flag rate and false alarms on the gold set (all 30 reports; false alarm = a fully correct report that is flagged
-anyway):
-
-| | LLM v2 | LLM v2 + flag layer |
-|---|---|---|
-| Flag rate — routine · tricky | 1/12 · 6/18 | 1/12 · 11/18 |
-| False-alarm rate — routine · tricky | 0/10 · 5/15 | 0/10 · 10/15 |
-
-The 3 wrong & unflagged gold reports (part of day / date slips with no hedging cue) are not caught by the layer.
-
-**Nurse workload: flag rate on the whole main dataset (184 reports, unlabelled)**
-
-| | Rule baseline | LLM v2 | LLM v2 + flag layer |
+| Blind set 2 (n = 50) | Rule baseline | LLM v2 | LLM v2 + flag layer |
 |---|---|---|---|
-| Reports with any flag | 6/184 | 27/184 | 32/184 |
-| … warning or urgent (report set to needs_review) | 3/184 | 25/184 | 30/184 |
+| **Wrong & unflagged** (silent errors) | 22/50 (44%) | 14/50 (28%) | **4/50 (8%)** |
+| Report fully correct (symptom rows) | 27/50 (54%) | 36/50 (72%) | 36/50 (72%) |
+| **Flag rate** (reports with any flag) | 2/50 (4%) | 5/50 (10%) | **30/50 (60%)** |
+| False-alarm rate (correct reports flagged) | 1/27 (4%) | 5/36 (14%) | 20/36 (56%) |
+| Red-flag recall (distress counts as red flag) | 0/5 (0%) | 2/5 (40%) | 4/5 (80%) |
+| False alarms on routine reports (correct, flagged) | 0/13 (0%) | 0/13 (0%) | 1/13 (8%) |
 
-**Messy set (n = 88; blind for rules and v2, development set for the flag layer)**
-
-| | Rule baseline | LLM v2 | LLM v2 + flag layer (in-sample) |
-|---|---|---|---|
-| Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 | same as v2 (flags only) |
-| Report fully correct | 35/88 | 61/88 | 61/88 |
-| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 | **3/88** · 24/88 |
-| Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 | 42/61 · 9/9 |
-| **Flag rate** | 5/88 | 12/88 | **68/88** |
-| **False-alarm rate** (correct reports flagged) | 2/35 | 9/61 | **44/61** |
-| … of which no flag was labelled for the report | 0/16 | 0/25 | 12/25 |
+- "Wrong" = at least one symptom row missed, spurious, or with a wrong presence / count / date.
+- Of the 20 correct reports the layer flags, 16 have a flag in their reviewed label (e.g. a hedged count); 4 have
+  none.
+- Review-flag precision · recall, all labelled types including `other_symptom` and `prompt_injection`:
+  2/2 · 2/27 (rules), 5/5 · 5/27 (v2), 15/20 · 15/27 (v2 + flag layer).
 
 **Why "wrong & unflagged" is the main safety metric:** a flagged error goes to a nurse with the patient's words
-next to it; an unflagged error looks exactly like a correct value on the chart. Without the layer, 24 of the LLM's
-27 wrong reports were unflagged. The flag layer brings that to 3/88, **but the price is review load on messy
-text**: 77% of messy reports get a flag, and 44 of the 61 correct ones are flagged too (32 of those were reports
-whose reviewed labels already asked for a flag, e.g. hedged counts; 12 were not). On the main dataset, which is
-mostly routine, the layer adds only 5 reports to the queue (27 → 32 of 184). These numbers are in-sample.
-
-**Experiment, rejected: a narrower `parser_disagreement`** (only rules-only symptoms, present vs absent, or
-non-overlapping counts; LLM-only symptoms ignored).
-
-| | Narrow (rejected) | Final |
-|---|---|---|
-| Messy set: wrong & unflagged | 7/88 | **3/88** |
-| Messy set: flag rate · false alarms | 61/88 · 41/61 | 68/88 · 44/61 |
-| Gold tricky: flag rate · false alarms | 10/18 · 9/15 | 11/18 · 10/15 |
-| Main dataset flag rate | 31/184 | 32/184 |
-
-It let 4 more errors reach the chart unflagged (BL04, BL30, BL46, BL48) to save 3 false alarms, with almost the
-same nurse workload. In a clinical setting safety comes first, so the broader rule is the final version, frozen
-(git tag `flag-layer-final`).
+next to it; an unflagged error looks exactly like a correct value on the chart. Without the layer, all 14 of the
+LLM's wrong reports were unflagged; with it, 10 of them are flagged and 4 still reach the chart unseen.
 
 ### Key judgments made by the author
 
 - **Misspelled drug names are not auto-matched.** "zofram", "compazene" → flagged `unmapped_medication`, never
-  fuzzy-matched to a drug (decided on BL20, applied to BL19 / BL63 / BL64).
+  fuzzy-matched to a drug.
 - **Implied symptoms are `uncertain`, not `present`.** "zofram helped a bit" → nausea uncertain; "can't keep food
   down" → vomiting uncertain, no count.
 - **Self-contradicting reports get `intra_report_conflict`**, not a severity mismatch.
@@ -245,7 +198,16 @@ same nurse workload. In a clinical setting safety comes first, so the broader ru
 - Record **clock times the patient states** ("took it at 8", "around 2pm"), marked exact or approximate.
 
 **System**
-- **Measure the frozen flag layer on a fresh blind set**; its current numbers are in-sample.
+- **Improve the flag-layer word lists and rules, guided by what blind set 2 missed** (then measure again on a new
+  blind set, since blind set 2 has now been seen):
+  - B2_06 "like a handful of times": vague quantity words (handful, bunch, several) are not treated as hedging.
+  - B2_23 "stomach is doing gymnastics … up and down twice. chef's kiss": figurative / sarcastic wording; both
+    parsers miss the implied vomiting and nausea, so they agree and nothing is flagged.
+  - B2_26 "knuckles are killing me … pins and needles … sores in my mouth": numbness / tingling and mouth sores are
+    not in the `other_symptom` word list.
+  - B2_45 "Skipped breakfast this morning": skipped meals are not read as appetite loss by either parser.
+  - Missed red flag B2_35 "Honestly not sure I want to keep going … What's the use at my age": the distress list has
+    "what's the point" but not "what's the use" or "not sure I want to keep going".
 - **Hybrid routing**: rules for routine reports they cover with high confidence, LLM for the rest; the router's
   acceptance rule is judged by wrong & unflagged (and flag rate) on a blind set.
 - **Similarity check against a labelled example library**: compare each evidence span with reviewed examples (local

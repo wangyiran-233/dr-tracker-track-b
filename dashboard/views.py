@@ -806,20 +806,22 @@ def _md_sections(path) -> dict[str, str]:
     return {p.split("\n", 1)[0].strip(): p.split("\n", 1)[1] if "\n" in p else "" for p in parts[1:]}
 
 
-def _messy_section(secs: dict[str, str]) -> str:
-    return next((v for k, v in secs.items() if k.startswith("Blind messy set")), "")
+BLIND2 = "Blind set 2"     # results.md section of the fresh blind test (the only results shown on the dashboard)
+
+
+def _blind2_section(secs: dict[str, str]) -> str:
+    return next((v for k, v in secs.items() if k.startswith(BLIND2)), "")
 
 
 def blind_headline() -> str | None:
-    """'24 → 3 / 88' style count for 'wrong & unflagged' on the 88-report messy set: LLM prompt v2
-    without, then with the deterministic flag layer (last two columns of eval/results.md)."""
-    sec = _messy_section(_md_sections(data.EVAL_DIR / "results.md"))
+    """'4 / 50' style count for 'wrong & unflagged' on blind set 2 with LLM prompt v2 + the deterministic
+    flag layer (last column of the blind set 2 table in eval/results.md)."""
+    sec = _blind2_section(_md_sections(data.EVAL_DIR / "results.md"))
     for line in sec.splitlines():
         if line.startswith("| Wrong & unflagged"):
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            a, b = (re.search(r"\((\d+)/(\d+)\)", c) for c in cells[-2:])
-            if a and b:
-                return f"{a.group(1)} → {b.group(1)} / {b.group(2)}"
+            m = re.search(r"\((\d+)/(\d+)\)", line.strip().strip("|").split("|")[-1])
+            if m:
+                return f"{m.group(1)} / {m.group(2)}"
     return None
 
 
@@ -859,42 +861,18 @@ def _method_tab() -> None:
 
 
 def _eval_tab() -> None:
-    v2 = _md_sections(data.EVAL_DIR / "results.md")
-    st.subheader("Parser evaluation on the gold set (30 reports)")
-    ft = next((k for k in v2 if k.startswith("Free-text")), None)
-    if ft:
-        st.markdown(f"**{ft}** — rule baseline vs LLM prompt v1 vs v2")
-        st.markdown(v2[ft])
-    else:
+    blind = _blind2_section(_md_sections(data.EVAL_DIR / "results.md"))
+    if not blind:
         st.caption("eval/results.md not found — run evaluate.py --offline.")
-    st.markdown(
-        "**v1 → v2 changes** (each targets an observed v1 error): exaggerated counts copied literally so the code "
-        "guard can flag them · part of day only from time words, never from submission time · previous report "
-        "given as context so corrections can be resolved.  \n"
-        "**Read with care:** 23 free-text reports, so one report moves a metric by several points; the keyword "
-        "baseline is optimistic because routine reports come from templates and the rules were written after "
-        "seeing them. The messy set below was the fairer test for rules and v2 (it is now a development set "
-        "for the flag layer).")
-    err_v2 = next((k for k in v2 if k.startswith("Errors - LLM prompt v2")), None)
-    if err_v2:
-        with st.expander(f"LLM prompt v2 — {err_v2.split('(')[-1].rstrip(')')}"):
-            st.markdown(v2[err_v2])
-    err_v1 = next((k for k in v2 if k.startswith("Errors - LLM prompt v1")), None)
-    if err_v1:
-        with st.expander(f"LLM prompt v1 — {err_v1.split('(')[-1].rstrip(')')}"):
-            st.markdown(v2[err_v1])
-    q = next((k for k in v2 if k.startswith("Questionnaire")), None)
-    if q:
-        with st.expander("Questionnaire reports (deterministic in all columns)"):
-            st.markdown(v2[q])
-    blind = _messy_section(v2)
-    if blind:
-        st.subheader("Messy set (88 reports, 22 categories × 4) — now a development set")
-        summary, _, rest = blind.partition("### ")
-        st.markdown(summary)
-        if rest:
-            with st.expander("By category and every wrong & unflagged report"):
-                st.markdown("### " + rest)
+        return
+    st.subheader("Blind set 2 — fresh blind test (50 reports: 35 edge cases, 15 routine)")
+    summary, _, rest = blind.partition("### ")
+    st.markdown(summary)
+    if rest:
+        with st.expander("By category, every wrong & unflagged report and the missed red flag"):
+            st.markdown("### " + rest)
+    st.caption("Prompt v2 and the flag layer were frozen before blind set 2 was written. Development-set results "
+               "are in eval/results.md, not shown here.")
 
 
 # ---------------------------------------------------------------------------
@@ -1073,39 +1051,33 @@ def _row(section: str, metric: str) -> tuple | None:
     return None
 
 
-# (results.md section prefix, metric row prefix, label, dataset, impact template, primary KPI?)
+# (metric row prefix in the blind set 2 table, label, dataset, impact template, primary KPI?)
+B2 = "Blind set 2 · 50 reports"
 BENCH = [
-    ("Free-text", "Report fully correct - hand-annotated tricky", "Report fully correct",
-     "Gold set · hand-annotated tricky free text",
-     "Every field right on the hardest hand-labelled reports (corrections, hedges, exaggerated counts)", False),
-    ("Blind messy set", "Symptom rows - recall", "Symptom rows found (recall)",
-     "Messy set · 88 reports, 22 categories",
+    ("Symptom rows - recall", "Symptom rows found (recall)", B2,
      "A missed row is a symptom the provider never sees: v2 misses {vm} of {d}, rules miss {rm}; "
      "the flag layer adds flags only, so rows are unchanged", False),
-    ("Blind messy set", "Report fully correct", "Report fully correct (symptom rows)",
-     "Messy set · 88 reports, 22 categories",
+    ("Report fully correct (symptom rows)", "Report fully correct (symptom rows)", B2,
      "Reports whose symptom rows are all right without any human review", False),
-    ("Blind messy set", "Red flags - recall", "Red flags caught (recall)",
-     "Messy set · reports labelled red_flag (distress counts as red flag)",
-     "v2 alone misses {vm} of {d}; with the flag layer {lm} missed (in-sample)", False),
-    ("Blind messy set", "Wrong & unflagged", "Wrong & unflagged (silent error)",
-     "Messy set · 88 reports, 22 categories",
-     "Errors that reach the chart with no flag: rules {rn}, v2 {vn}, v2 + flag layer {ln} of {d}. In-sample: "
-     "the layer was written after seeing these reports", True),
-    ("Blind messy set", "Flag rate", "Flag rate (cost)",
-     "Messy set · 88 reports, 22 categories",
+    ("Red flags - recall", "Red flags caught (recall)",
+     "Blind set 2 · reports labelled red_flag (distress counts as red flag)",
+     "v2 alone misses {vm} of {d}; with the flag layer {lm} missed", False),
+    ("Wrong & unflagged", "Wrong & unflagged (silent error)", B2,
+     "Errors that reach the chart with no flag: rules {rn}, v2 {vn}, v2 + flag layer {ln} of {d}", True),
+    ("Flag rate (reports", "Flag rate (cost)", B2,
      "Share of reports a nurse has to look at: v2 {vn}, v2 + flag layer {ln} of {d}", False),
-    ("Blind messy set", "False-alarm rate (fully", "False alarms (cost)",
-     "Messy set · fully correct reports",
+    ("False-alarm rate (fully", "False alarms (cost)", "Blind set 2 · fully correct reports",
      "Correct reports flagged anyway: v2 {vn}, v2 + flag layer {ln} of {d}", False),
+    ("False-alarm rate - routine", "False alarms on routine reports (cost)",
+     "Blind set 2 · fully correct routine reports",
+     "Everyday reports flagged by mistake: v2 {vn}, v2 + flag layer {ln} of {d}", False),
 ]
 
 
 def benchmark_table() -> None:
-    secs = _md_sections(data.EVAL_DIR / "results.md")
+    sec = _blind2_section(_md_sections(data.EVAL_DIR / "results.md"))
     rows = []
-    for sec_key, metric, label, dataset, impact, primary in BENCH:
-        sec = next((v for k, v in secs.items() if k.startswith(sec_key)), "")
+    for metric, label, dataset, impact, primary in BENCH:
         found = _row(sec, metric)
         if not found:
             continue
@@ -1129,11 +1101,10 @@ def benchmark_table() -> None:
             f"<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:8px 16px;"
             f"flex-wrap:wrap'><div><div style='font-size:1.15rem;font-weight:700'>Extraction &amp; Safety "
             f"Guardrail Benchmark</div><div class='dt-small' style='font-size:.86rem'>Keyword-rule baseline vs LLM "
-            f"prompt v2 (Pydantic schema + verbatim-evidence check) vs v2 + deterministic flag layer · gold set "
-            f"(30 reports) and messy set (88 reports, 22 failure categories; scored blind for rules and v2, but the "
-            f"flag layer was written after seeing it, so it is now a development set) · raw counts; small samples, "
-            f"no significance claimed</div></div>"
-            + (f"<span class='dt-chip'>{head} wrong &amp; unflagged · v2 → + flag layer</span>" if head else "")
+            f"prompt v2 (Pydantic schema + verbatim-evidence check) vs v2 + deterministic flag layer · blind set 2 "
+            f"(50 new reports: 35 edge cases over 22 failure categories, 15 routine; prompt and flag layer frozen "
+            f"before it was written) · raw counts; small samples, no significance claimed</div></div>"
+            + (f"<span class='dt-chip'>{head} wrong &amp; unflagged · fresh blind set</span>" if head else "")
             + "</div>"
             f"<div style='overflow-x:auto'><table class='dt-bench'><thead><tr><th>Metric</th><th>Dataset</th>"
             f"<th>Rule baseline</th><th>LLM v2</th><th>v2 + flag layer</th><th>Clinical safety impact</th>"
@@ -1180,8 +1151,7 @@ def page_inspector() -> None:
             head = blind_headline()
             if head:
                 st.html(f"<div style='text-align:center;margin-top:6px'><span class='dt-chip' "
-                        f"style='font-size:.78rem'>{head} wrong &amp; unflagged</span><div class='dt-small' "
-                        f"style='margin-top:3px'>v2 → v2 + flag layer · messy set (dev)</div></div>")
+                        f"style='font-size:.78rem'>{head} wrong &amp; unflagged · fresh blind set</span></div>")
 
     t_edge, t_words, t_queue, t_eval, t_method = st.tabs(["Edge cases", "Browse all reports", "Review queue",
                                                           "Evaluation", "Method"])

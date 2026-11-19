@@ -67,31 +67,38 @@ Validation layers: Pydantic schema (one retry with the error fed back); every ro
 flagged (a weak, uncalibrated signal). An auth, quota or model error stops the run with the database unchanged; a
 single failed report falls back to rules and is flagged.
 
-**Gold set** (30 reports, raw counts in [`eval/results.md`](../eval/results.md)): symptom detection is the
-same for both (recall 39/40). The LLM (prompt v2) is better on presence, counts and severity (39/39, 15/15, 18/18
-vs 38/39, 14/15, 17/18), on tricky reports (13/16 vs 11/16), on flag recall (5/5 vs 4/5) and on corrections
-(1/1 vs 0/1). Rules
-win on templated routine reports (7/7 vs 5/7). The samples are small, so no significance is claimed. Author review
-of the 18 AI-drafted tricky labels: **16 agreed, 2 revised**. Both revisions were questionnaire PRN drugs labelled
-as patient-stated when they were inferred, which led to the explicit *inferred vs stated* field.
+**Blind set 2** (50 reports: 35 edge cases over 22 failure categories + 15 routine; text by a different model,
+labels drafted by AI and reviewed by the author before any parser ran: 47 agreed, 3 revised) is the test. The flag
+layer was designed on an earlier 88-report development set and frozen (tag `flag-layer-final`) before blind set 2
+was written; nothing was changed after seeing the results. Raw counts in [`eval/results.md`](../eval/results.md):
 
-**Blind messy set** (88 reports, 22 failure categories × 4; labels drafted by AI and reviewed by the author before any parser ran:
-79 agreed, 9 revised). Reports fully correct: LLM v2 61/88 vs rules 35/88. **Wrong and unflagged: 24/88 vs
-50/88**; wrong and flagged: 3/88 each. Review-flag recall is low for both (11/61 vs 4/61; red flags 4/9 vs 2/9).
-The prompt was deliberately not tuned on these results. The main lesson was that the flag layer, not
-extraction, is the weak point, so a **deterministic flag layer** (`cinv/flag_layer.py`) was added after the LLM:
-uncertain presence, hedging, empty / emoji-only / non-English text, second-hand accounts and uncertain dates →
-`low_confidence`; any rules-vs-LLM disagreement on symptoms, presence or counts → `parser_disagreement`; distress → `distress` (urgent, shown as a red
-flag); out-of-schema complaints → `other_symptom` (fever also `red_flag`); injection-like text →
-`prompt_injection`. It only adds flags and was rebuilt from the cache without API calls. On the 88 reports, wrong
-and unflagged falls from 24 to **3/88**, at a flag rate of 68/88 and a false-alarm rate of 44/61 correct reports;
-on the 184-report main dataset the flag rate goes from 27 to 32 reports. These rules were written after seeing the
-88 results, so this set is **now a development set, not a blind test**, and the numbers are in-sample.
+| Blind set 2 (n = 50) | Rule baseline | LLM v2 | LLM v2 + flag layer |
+|---|---|---|---|
+| Wrong and unflagged | 22/50 (44%) | 14/50 (28%) | **4/50 (8%)** |
+| Report fully correct | 27/50 (54%) | 36/50 (72%) | 36/50 (72%) |
+| Flag rate | 2/50 (4%) | 5/50 (10%) | 30/50 (60%) |
+| False-alarm rate (correct reports flagged) | 1/27 (4%) | 5/36 (14%) | 20/36 (56%) |
+| Red-flag recall | 0/5 (0%) | 2/5 (40%) | 4/5 (80%) |
+| False alarms on routine reports | 0/13 (0%) | 0/13 (0%) | 1/13 (8%) |
 
-A narrower `parser_disagreement` (rules-only symptoms, present vs absent, non-overlapping counts) was tried and
-rejected: wrong and unflagged 7/88 vs 3/88 for 3 fewer false alarms (41/61 vs 44/61) and the same main-dataset
-workload (31 vs 32 / 184). Letting 4 more errors reach the chart silently is not worth 3 false alarms, so the
-broader, safer rule is the final, frozen version (tag `flag-layer-final`). Details in [`eval/results.md`](../eval/results.md).
+Flag precision and recall score every labelled flag type, including `other_symptom` and `prompt_injection`, with
+one rule for all three columns (`distress` counts as `red_flag`; the unlabelled `parser_disagreement` is left out).
+
+**Deterministic flag layer (implemented).** The development set showed that flags, not extraction, were the weak
+point, so `cinv/flag_layer.py` runs after the LLM with the prompt unchanged. It only adds flags: uncertain presence,
+hedging, empty / emoji-only / non-English text, second-hand accounts and uncertain dates → `low_confidence`; any
+rules-vs-LLM disagreement on symptoms, presence or counts → `parser_disagreement`; distress → `distress` (urgent,
+shown as a red flag); out-of-schema complaints → `other_symptom` (fever also `red_flag`); injection-like text →
+`prompt_injection`. **The cost is review load**: flag rate 60% (30/50) on blind set 2, which is mostly messy text;
+17% on the 184-report everyday main dataset (27 → 32 reports with any flag); 1 of 13 correct routine reports in
+blind set 2 flagged by mistake. Of the 20 correct blind-set-2 reports it flags, 16 carry a flag in their reviewed
+label (e.g. a hedged count). A narrower `parser_disagreement` was tried on the development set and rejected because
+it let more errors through unflagged to save a few false alarms.
+
+**Development sets.** The **gold set** (30 reports; 18 tricky labels drafted by AI and reviewed by the author: 16
+agreed, 2 revised) was used to tune the prompt (v1 → v2). Both revisions were questionnaire PRN drugs labelled as
+patient-stated when they were inferred, which led to the explicit *inferred vs stated* field. The **88-report messy
+set** was used to design the flag layer. Their full results are at the end of [`eval/results.md`](../eval/results.md).
 
 **Why "wrong and unflagged" matters more than "wrong and flagged".** A flagged error goes to the review queue. A
 nurse sees the patient's words next to the parsed value, so the cost is a minute of review time. An unflagged
@@ -133,17 +140,29 @@ crying emoji contain no CINV symptom. Clinical crisis handling (risk assessment,
 is **out of the parser's scope**: the parser only extracts structured symptom, medication and weight data, and it
 must not try to judge or respond to a crisis. Such a message must still never disappear just because it produces no
 symptom rows. The intended handling is to send it to **human review at high priority** (`red_flag`), so a clinician
-sees the patient's own words and follows the practice's escalation protocol. The messy set labels these reports
+sees the patient's own words and follows the practice's escalation protocol. The labelled sets mark these reports
 this way (`distress_not_symptom`). Both parsers correctly store no symptom rows for them; the deterministic flag
-layer now raises an urgent `distress` flag (keyword list, in-sample), which the dashboard shows as a red flag.
+layer raises an urgent `distress` flag (keyword list), which the dashboard shows as a red flag. On blind set 2 the
+list missed one: "Honestly not sure I want to keep going with all this. What's the use at my age." (B2_35).
 
 ## 7. Next steps (designed, not built)
+
+**Flag-layer word lists and rules, from the blind set 2 misses.** The 4 wrong-and-unflagged reports and the missed
+red flag point to concrete gaps (any change must be measured on a new blind set, since blind set 2 has been seen):
+
+| Report | Patient words (excerpt) | Gap |
+|---|---|---|
+| B2_06 | "throwing up like a handful of times" | vague quantity words (handful, bunch, several) are not hedging cues |
+| B2_23 | "stomach is doing gymnastics again. up and down twice. chef's kiss." | figurative / sarcastic wording; both parsers miss it, so they agree and nothing fires |
+| B2_26 | "knuckles are killing me … pins and needles … sores in my mouth" | numbness / tingling and mouth sores are missing from the `other_symptom` list |
+| B2_45 | "Skipped breakfast this morning." | skipped meals are not read as appetite loss by either parser |
+| B2_35 (red flag) | "not sure I want to keep going … What's the use at my age" | distress list has "what's the point" but not "what's the use" / "keep going" |
 
 **Hybrid routing.** On the gold set, rules were 7/7 on routine reports while the LLM did better on tricky ones. A
 router would send questionnaires and free text that the rules cover with high confidence (only known template
 phrases, no correction or time-shift words, no unmapped drugs, values in range) to the deterministic parser, and
 everything else to the LLM. This saves cost and latency and makes routine data fully reproducible. The risk is the
-router's own false confidence, so its acceptance rule must be evaluated on the blind set (wrong-and-unflagged among
+router's own false confidence, so its acceptance rule must be evaluated on a blind set (wrong-and-unflagged among
 rule-accepted reports). A cheap variant runs both parsers and flags disagreements.
 
 **Patient-stated clock times.** Store a time when the patient gives one ("took it at 8", "around 2pm"), marked
