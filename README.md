@@ -108,9 +108,8 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
   - `low_confidence`: presence `uncertain`; hedging (maybe, idk, i think, not sure, ??, "like N"); empty,
     emoji-only or non-English text; second-hand accounts (says, told me, husband / mom …); uncertain dates
     (day N, the other day, "or was that yesterday").
-  - `parser_disagreement`: only where the keyword rules are usually right (high precision, low recall): the rules
-    found a symptom the LLM did not, opposite presence (present vs absent), or count ranges that do not overlap.
-    A symptom found only by the LLM does not trigger it (most often the rules simply missed it).
+  - `parser_disagreement`: the keyword-rule parser and the LLM disagree on symptoms, presence or counts
+    (any difference, including a symptom found only by the LLM).
   - **The rules are frozen as the final version**; any change needs a fresh blind set to measure it.
   - `distress` (scared, can't do this, give up, 😭 …): urgent, shown as a red flag.
   - `other_symptom`: complaints outside the schema (fever, diarrhea, constipation, hair loss, fatigue, pain);
@@ -168,8 +167,8 @@ anyway):
 
 | | LLM v2 | LLM v2 + flag layer |
 |---|---|---|
-| Flag rate — routine · tricky | 1/12 · 6/18 | 1/12 · 10/18 |
-| False-alarm rate — routine · tricky | 0/10 · 5/15 | 0/10 · 9/15 |
+| Flag rate — routine · tricky | 1/12 · 6/18 | 1/12 · 11/18 |
+| False-alarm rate — routine · tricky | 0/10 · 5/15 | 0/10 · 10/15 |
 
 The 3 wrong & unflagged gold reports (part of day / date slips with no hedging cue) are not caught by the layer.
 
@@ -177,8 +176,8 @@ The 3 wrong & unflagged gold reports (part of day / date slips with no hedging c
 
 | | Rule baseline | LLM v2 | LLM v2 + flag layer |
 |---|---|---|---|
-| Reports with any flag | 6/184 | 27/184 | 31/184 |
-| … warning or urgent (report set to needs_review) | 3/184 | 25/184 | 29/184 |
+| Reports with any flag | 6/184 | 27/184 | 32/184 |
+| … warning or urgent (report set to needs_review) | 3/184 | 25/184 | 30/184 |
 
 **Messy set (n = 88; blind for rules and v2, development set for the flag layer)**
 
@@ -186,23 +185,32 @@ The 3 wrong & unflagged gold reports (part of day / date slips with no hedging c
 |---|---|---|---|
 | Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 | same as v2 (flags only) |
 | Report fully correct | 35/88 | 61/88 | 61/88 |
-| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 | **7/88** · 20/88 |
+| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 | **3/88** · 24/88 |
 | Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 | 42/61 · 9/9 |
-| **Flag rate** | 5/88 | 12/88 | **61/88** |
-| **False-alarm rate** (correct reports flagged) | 2/35 | 9/61 | **41/61** |
-| … of which no flag was labelled for the report | 0/16 | 0/25 | 10/25 |
+| **Flag rate** | 5/88 | 12/88 | **68/88** |
+| **False-alarm rate** (correct reports flagged) | 2/35 | 9/61 | **44/61** |
+| … of which no flag was labelled for the report | 0/16 | 0/25 | 12/25 |
 
 **Why "wrong & unflagged" is the main safety metric:** a flagged error goes to a nurse with the patient's words
 next to it; an unflagged error looks exactly like a correct value on the chart. Without the layer, 24 of the LLM's
-27 wrong reports were unflagged. The flag layer brings that to 7/88, **but the price is review load on messy
-text**: 69% of messy reports get a flag, and 41 of the 61 correct ones are flagged too (31 of those were reports
-whose reviewed labels already asked for a flag, e.g. hedged counts; 10 were not). On the main dataset, which is
-mostly routine, the layer adds only 4 reports to the queue (27 → 31 of 184). These numbers are in-sample.
+27 wrong reports were unflagged. The flag layer brings that to 3/88, **but the price is review load on messy
+text**: 77% of messy reports get a flag, and 44 of the 61 correct ones are flagged too (32 of those were reports
+whose reviewed labels already asked for a flag, e.g. hedged counts; 12 were not). On the main dataset, which is
+mostly routine, the layer adds only 5 reports to the queue (27 → 32 of 184). These numbers are in-sample.
 
-A first version also fired `parser_disagreement` when only the LLM found a symptom or on uncertain-vs-present. It
-reached 3/88 wrong & unflagged but at 68/88 flag rate and 44/61 false alarms (32/184 on the main dataset). It was
-narrowed to the rules' reliable cases (above); the 4 reports this lets through again (BL04, BL30, BL46, BL48) are
-uncertain-vs-present or LLM-only disagreements.
+**Experiment, rejected: a narrower `parser_disagreement`** (only rules-only symptoms, present vs absent, or
+non-overlapping counts; LLM-only symptoms ignored).
+
+| | Narrow (rejected) | Final |
+|---|---|---|
+| Messy set: wrong & unflagged | 7/88 | **3/88** |
+| Messy set: flag rate · false alarms | 61/88 · 41/61 | 68/88 · 44/61 |
+| Gold tricky: flag rate · false alarms | 10/18 · 9/15 | 11/18 · 10/15 |
+| Main dataset flag rate | 31/184 | 32/184 |
+
+It let 4 more errors reach the chart unflagged (BL04, BL30, BL46, BL48) to save 3 false alarms, with almost the
+same nurse workload. In a clinical setting safety comes first, so the broader rule is the final version, frozen
+(git tag `flag-layer-final`).
 
 ### Key judgments made by the author
 

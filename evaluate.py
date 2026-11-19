@@ -414,6 +414,12 @@ def blind_markdown(res: dict[str, dict], recs: dict[str, list[dict]], blind: lis
           "scored blind (prompt v2 is unchanged). The deterministic flag layer (`cinv/flag_layer.py`) was written "
           "*after* these results and these 88 reports had been seen, so its column is an in-sample number and "
           "overstates how well it generalises; a fresh blind set is needed to measure it.", "",
+          "**Experiment, rejected:** a narrower `parser_disagreement` (only rules-only symptoms, present vs "
+          "absent, or non-overlapping counts; LLM-only symptoms ignored). Narrow vs final: wrong & unflagged "
+          "7/88 vs 3/88, flag rate 61/88 vs 68/88, false alarms 41/61 vs 44/61, gold tricky flag rate 10/18 vs "
+          "11/18, main dataset 31/184 vs 32/184. It let 4 more errors through unflagged (BL04, BL30, BL46, BL48) "
+          "to save 3 false alarms with almost the same workload, so the broader (safer) rule is the final, "
+          "frozen version.", "",
           "Severity and medication rows are not labelled here; dates are scored only for the 3 "
           "date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is "
           "parsed on its own (no previous report, no medication orders). \"Wrong\" = at least one symptom "

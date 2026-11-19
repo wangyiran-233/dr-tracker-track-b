@@ -58,9 +58,9 @@ Flag rate = reports with at least one flag of any type (including info). False-a
 | Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|---|
 | Flag rate - routine | 0% (0/12) | 0% (0/12) | 8% (1/12) | 8% (1/12) |
-| Flag rate - tricky | 33% (6/18) | 28% (5/18) | 33% (6/18) | 56% (10/18) |
+| Flag rate - tricky | 33% (6/18) | 28% (5/18) | 33% (6/18) | 61% (11/18) |
 | False-alarm rate - routine (correct reports flagged) | 0% (0/12) | 0% (0/11) | 0% (0/10) | 0% (0/10) |
-| False-alarm rate - tricky (correct reports flagged) | 31% (4/13) | 21% (3/14) | 33% (5/15) | 60% (9/15) |
+| False-alarm rate - tricky (correct reports flagged) | 31% (4/13) | 21% (3/14) | 33% (5/15) | 67% (10/15) |
 
 ## Flag rate - main dataset (all 184 reports; nurse workload)
 
@@ -68,14 +68,16 @@ Every report in the synthetic dataset, parsed in submission order with cross-rep
 
 | Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|
-| Flag rate (reports with any flag) | 3% (6/184) | 15% (27/184) | 17% (31/184) |
-| Flag rate, warning or urgent (report set to needs_review) | 2% (3/184) | 14% (25/184) | 16% (29/184) |
+| Flag rate (reports with any flag) | 3% (6/184) | 15% (27/184) | 17% (32/184) |
+| Flag rate, warning or urgent (report set to needs_review) | 2% (3/184) | 14% (25/184) | 16% (30/184) |
 
 ## Blind messy set (now a development set)
 
 88 reports (22 failure categories x 4), written by a different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran (`data/blind_review.csv`).
 
 **This is now a development set, not a blind test.** The rule baseline and LLM prompt v2 columns were scored blind (prompt v2 is unchanged). The deterministic flag layer (`cinv/flag_layer.py`) was written *after* these results and these 88 reports had been seen, so its column is an in-sample number and overstates how well it generalises; a fresh blind set is needed to measure it.
+
+**Experiment, rejected:** a narrower `parser_disagreement` (only rules-only symptoms, present vs absent, or non-overlapping counts; LLM-only symptoms ignored). Narrow vs final: wrong & unflagged 7/88 vs 3/88, flag rate 61/88 vs 68/88, false alarms 41/61 vs 44/61, gold tricky flag rate 10/18 vs 11/18, main dataset 31/184 vs 32/184. It let 4 more errors through unflagged (BL04, BL30, BL46, BL48) to save 3 false alarms with almost the same workload, so the broader (safer) rule is the final, frozen version.
 
 Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
 
@@ -90,18 +92,18 @@ Severity and medication rows are not labelled here; dates are scored only for th
 | Review flags - recall | 7% (4/61) | 18% (11/61) | 69% (42/61) |
 | Red flags - recall (reports labelled red_flag) | 22% (2/9) | 44% (4/9) | 100% (9/9) |
 | Report fully correct (symptom rows) | 40% (35/88) | 69% (61/88) | 69% (61/88) |
-| Wrong & flagged (reports) | 3% (3/88) | 3% (3/88) | 23% (20/88) |
-| Wrong & unflagged (reports) - lower is better | 57% (50/88) | 27% (24/88) | 8% (7/88) |
-| Flag rate (reports with any flag) | 6% (5/88) | 14% (12/88) | 69% (61/88) |
-| False-alarm rate (fully correct reports that are flagged) | 6% (2/35) | 15% (9/61) | 67% (41/61) |
-| False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway) | 0% (0/16) | 0% (0/25) | 40% (10/25) |
+| Wrong & flagged (reports) | 3% (3/88) | 3% (3/88) | 27% (24/88) |
+| Wrong & unflagged (reports) - lower is better | 57% (50/88) | 27% (24/88) | 3% (3/88) |
+| Flag rate (reports with any flag) | 6% (5/88) | 14% (12/88) | 77% (68/88) |
+| False-alarm rate (fully correct reports that are flagged) | 6% (2/35) | 15% (9/61) | 72% (44/61) |
+| False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway) | 0% (0/16) | 0% (0/25) | 48% (12/25) |
 
 ### By category (raw counts, 4 reports each)
 
 | Category | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged | LLM prompt v2 + flag layer: correct | LLM prompt v2 + flag layer: wrong & unflagged |
 |---|---|---|---|---|---|---|
-| typos_phonetic_spelling | 0/4 | 4 | 1/4 | 2 | 1/4 | 1 |
-| slang_abbreviations | 0/4 | 4 | 2/4 | 2 | 2/4 | 2 |
+| typos_phonetic_spelling | 0/4 | 4 | 1/4 | 2 | 1/4 | 0 |
+| slang_abbreviations | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
 | vague_hedged_counts | 0/4 | 4 | 2/4 | 2 | 2/4 | 1 |
 | hedged_presence | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
 | relative_severity | 2/4 | 2 | 3/4 | 1 | 3/4 | 1 |
@@ -114,7 +116,7 @@ Severity and medication rows are not labelled here; dates are scored only for th
 | negation_traps | 1/4 | 2 | 2/4 | 1 | 2/4 | 0 |
 | sarcasm_emotion | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
 | pure_noise | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
-| unit_format_traps | 3/4 | 1 | 3/4 | 1 | 3/4 | 1 |
+| unit_format_traps | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
 | out_of_schema_symptoms | 2/4 | 1 | 4/4 | 0 | 4/4 | 0 |
 | non_english_fragment | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
 | overlong_rambling | 1/4 | 2 | 2/4 | 2 | 2/4 | 0 |
@@ -581,32 +583,7 @@ Severity and medication rows are not labelled here; dates are scored only for th
 - `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`
 
 
-### Wrong & unflagged - LLM prompt v2 + flag layer (7 reports)
-
-**BL04** (slang_abbreviations)  
-> ngl lowkey starving but naps gone. nauseous since lunch ugh. took zofran x1 at noon but still cant keep food down.
-
-- `MISSED     vomiting uncertain`
-- `WRONG      appetite_loss: presence expected uncertain got present  evidence='lowkey starving'`
-- `FLAG MISSED low_confidence`
-
-**BL30** (unit_format_traps)  
-> took 4mg this morning but up and down once after / weight is 71.5
-
-- `WRONG      vomiting: presence expected uncertain got present  evidence='up and down once after'`
-- `FLAG MISSED low_confidence`
-- `FLAG MISSED unmapped_medication`
-
-**BL46** (typos_phonetic_spelling)  
-> nawsea mild this morn / no vomitting / ate a litle tost 👍
-
-- `SPURIOUS   appetite_loss absent 2026-09-11 unknown sev=0  evidence='ate a litle tost 👍'`
-
-**BL48** (slang_abbreviations)  
-> no n/v today 🙌 appetite meh but lowkey ate a whole bagel
-
-- `WRONG      appetite_loss: presence expected uncertain got present  evidence='appetite meh'`
-- `FLAG MISSED low_confidence`
+### Wrong & unflagged - LLM prompt v2 + flag layer (3 reports)
 
 **BL49** (vague_hedged_counts)  
 > threw up a couple times since last night 🤮🤮
@@ -639,28 +616,32 @@ Severity and medication rows are not labelled here; dates are scored only for th
 - **BL19** (brand_names_misspellings; flags: unmapped_medication): `MISSED     nausea uncertain`; `FLAG MISSED low_confidence`
 - **BL23** (negation_traps; flags: red_flag): `SPURIOUS   retching uncertain 2026-09-10 unknown n=None-None  evidence='my stomach isnt just revolting'`; `WRONG      nausea: presence expected uncertain got absent  evidence='i havent been nauseous'`; `FLAG MISSED intra_report_conflict`; `FLAG MISSED low_confidence`
 
-### Wrong & flagged - LLM prompt v2 + flag layer (20 reports)
+### Wrong & flagged - LLM prompt v2 + flag layer (24 reports)
 
-- **BL01** (typos_phonetic_spelling; flags: low_confidence, red_flag): `SPURIOUS   unable_to_keep_fluids present 2026-09-08 unknown  evidence='cant keep food down'`; `FLAG SPURIOUS low_confidence`; `FLAG SPURIOUS red_flag`
-- **BL02** (typos_phonetic_spelling; flags: low_confidence): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
-- **BL07** (hedged_presence; flags: low_confidence): `WRONG      vomiting: count expected 1-2 got None-None  evidence='threw up once? or was it twicce'`
+- **BL01** (typos_phonetic_spelling; flags: low_confidence, parser_disagreement, red_flag): `SPURIOUS   unable_to_keep_fluids present 2026-09-08 unknown  evidence='cant keep food down'`; `FLAG SPURIOUS low_confidence`; `FLAG SPURIOUS red_flag`
+- **BL02** (typos_phonetic_spelling; flags: low_confidence, parser_disagreement): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
+- **BL04** (slang_abbreviations; flags: parser_disagreement): `MISSED     vomiting uncertain`; `WRONG      appetite_loss: presence expected uncertain got present  evidence='lowkey starving'`; `FLAG MISSED low_confidence`
+- **BL07** (hedged_presence; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-2 got None-None  evidence='threw up once? or was it twicce'`
 - **BL12** (cycle_day_references; flags: low_confidence): `MISSED     vomiting absent n=0-0`
 - **BL15** (time_ambiguity; flags: low_confidence): `WRONG      vomiting: count expected 2-3 got 1-None, date expected 2026-09-21 got 2026-09-22  evidence='threw up at 3 5 and i think 7pm'`
 - **BL16** (time_ambiguity; flags: low_confidence): `MISSED     nausea present`; `WRONG      vomiting: date expected 2026-09-22 got 2026-09-23  evidence='threw up once'`
 - **BL19** (brand_names_misspellings; flags: unmapped_medication): `MISSED     nausea uncertain`; `FLAG MISSED low_confidence`
-- **BL21** (second_hand_account; flags: low_confidence): `MISSED     nausea uncertain`; `WRONG      vomiting: presence expected present got uncertain  evidence='i had vomited on the pillow'`
-- **BL23** (negation_traps; flags: low_confidence, red_flag): `SPURIOUS   retching uncertain 2026-09-10 unknown n=None-None  evidence='my stomach isnt just revolting'`; `WRONG      nausea: presence expected uncertain got absent  evidence='i havent been nauseous'`; `FLAG MISSED intra_report_conflict`
-- **BL27** (pure_noise; flags: low_confidence): `WRONG      nausea: presence expected uncertain got present  evidence='🤢'`; `WRONG      vomiting: presence expected uncertain got present  evidence='🤮'`
-- **BL33** (non_english_fragment; flags: low_confidence): `MISSED     nausea uncertain`
-- **BL34** (non_english_fragment; flags: low_confidence): `WRONG      appetite_loss: presence expected uncertain got present  evidence='mei you chi dongxi'`
+- **BL21** (second_hand_account; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`; `WRONG      vomiting: presence expected present got uncertain  evidence='i had vomited on the pillow'`
+- **BL23** (negation_traps; flags: low_confidence, parser_disagreement, red_flag): `SPURIOUS   retching uncertain 2026-09-10 unknown n=None-None  evidence='my stomach isnt just revolting'`; `WRONG      nausea: presence expected uncertain got absent  evidence='i havent been nauseous'`; `FLAG MISSED intra_report_conflict`
+- **BL27** (pure_noise; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected uncertain got present  evidence='🤢'`; `WRONG      vomiting: presence expected uncertain got present  evidence='🤮'`
+- **BL30** (unit_format_traps; flags: parser_disagreement): `WRONG      vomiting: presence expected uncertain got present  evidence='up and down once after'`; `FLAG MISSED low_confidence`; `FLAG MISSED unmapped_medication`
+- **BL33** (non_english_fragment; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`
+- **BL34** (non_english_fragment; flags: low_confidence, parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='mei you chi dongxi'`
 - **BL35** (overlong_rambling; flags: low_confidence, other_symptom): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
 - **BL36** (overlong_rambling; flags: low_confidence, parser_disagreement): `MISSED     vomiting absent n=0-0`; `MISSED     appetite_loss present`; `FLAG SPURIOUS low_confidence`
-- **BL50** (vague_hedged_counts; flags: low_confidence): `WRONG      retching: count expected 2-None got 2-4  evidence='dry heaved a few times'`
-- **BL52** (hedged_presence; flags: low_confidence): `WRONG      vomiting: count expected 1-1 got 1-None  evidence='might have thrown up a little in my mouth'`
-- **BL56** (cycle_day_references; flags: low_confidence): `WRONG      vomiting: date expected 2026-09-20 got 2026-09-21  evidence='threw up once on day 4'`; `FLAG SPURIOUS low_confidence`
-- **BL65** (second_hand_account; flags: low_confidence): `MISSED     nausea present`
+- **BL46** (typos_phonetic_spelling; flags: parser_disagreement): `SPURIOUS   appetite_loss absent 2026-09-11 unknown sev=0  evidence='ate a litle tost 👍'`
+- **BL48** (slang_abbreviations; flags: parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='appetite meh'`; `FLAG MISSED low_confidence`
+- **BL50** (vague_hedged_counts; flags: low_confidence, parser_disagreement): `WRONG      retching: count expected 2-None got 2-4  evidence='dry heaved a few times'`
+- **BL52** (hedged_presence; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-1 got 1-None  evidence='might have thrown up a little in my mouth'`
+- **BL56** (cycle_day_references; flags: low_confidence, parser_disagreement): `WRONG      vomiting: date expected 2026-09-20 got 2026-09-21  evidence='threw up once on day 4'`; `FLAG SPURIOUS low_confidence`
+- **BL65** (second_hand_account; flags: low_confidence, parser_disagreement): `MISSED     nausea present`
 - **BL66** (second_hand_account; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-2 got 1-1  evidence='only once'`; `FLAG MISSED intra_report_conflict`
-- **BL67** (negation_traps; flags: low_confidence): `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`; `FLAG SPURIOUS low_confidence`
+- **BL67** (negation_traps; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`; `FLAG SPURIOUS low_confidence`
 
 ## Errors - Rule baseline (6 reports with at least one error)
 
