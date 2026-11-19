@@ -78,10 +78,15 @@ as patient-stated when they were inferred, which led to the explicit *inferred v
 **Blind messy set** (88 reports, 22 failure categories × 4; labels drafted by AI and reviewed by the author before any parser ran:
 79 agreed, 9 revised). Reports fully correct: LLM v2 61/88 vs rules 35/88. **Wrong and unflagged: 24/88 vs
 50/88**; wrong and flagged: 3/88 each. Review-flag recall is low for both (11/61 vs 4/61; red flags 4/9 vs 2/9).
-The prompt and rules were deliberately not tuned on these results. The main lesson is that the flag layer, not
-extraction, is the weak point: uncertain presence, distress without a symptom, non-English text and out-of-schema
-complaints have no deterministic flag yet, so a hedged report parsed with false confidence goes straight to the
-chart. Details in [`eval/results.md`](../eval/results.md).
+The prompt was deliberately not tuned on these results. The main lesson was that the flag layer, not
+extraction, is the weak point, so a **deterministic flag layer** (`cinv/flag_layer.py`) was added after the LLM:
+uncertain presence, hedging, empty / emoji-only / non-English text, second-hand accounts and uncertain dates →
+`low_confidence`; rules-vs-LLM disagreement → `parser_disagreement`; distress → `distress` (urgent, shown as a red
+flag); out-of-schema complaints → `other_symptom` (fever also `red_flag`); injection-like text →
+`prompt_injection`. It only adds flags and was rebuilt from the cache without API calls. On the 88 reports, wrong
+and unflagged falls from 24 to **3/88**, at a flag rate of 68/88 and a false-alarm rate of 44/61 correct reports.
+These rules were written after seeing the 88 results, so this set is **now a development set, not a blind test**,
+and the numbers are in-sample. Details in [`eval/results.md`](../eval/results.md).
 
 **Why "wrong and unflagged" matters more than "wrong and flagged".** A flagged error goes to the review queue. A
 nurse sees the patient's words next to the parsed value, so the cost is a minute of review time. An unflagged
@@ -123,9 +128,9 @@ crying emoji contain no CINV symptom. Clinical crisis handling (risk assessment,
 is **out of the parser's scope**: the parser only extracts structured symptom, medication and weight data, and it
 must not try to judge or respond to a crisis. Such a message must still never disappear just because it produces no
 symptom rows. The intended handling is to send it to **human review at high priority** (`red_flag`), so a clinician
-sees the patient's own words and follows the practice's escalation protocol. The blind set labels these reports
-this way (`distress_not_symptom`). Both parsers correctly store no symptom rows for them, but neither raises the flag
-reliably yet, so a deterministic distress flag is the first item on the flag-layer work below.
+sees the patient's own words and follows the practice's escalation protocol. The messy set labels these reports
+this way (`distress_not_symptom`). Both parsers correctly store no symptom rows for them; the deterministic flag
+layer now raises an urgent `distress` flag (keyword list, in-sample), which the dashboard shows as a red flag.
 
 ## 7. Next steps (designed, not built)
 

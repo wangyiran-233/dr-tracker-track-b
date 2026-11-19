@@ -166,13 +166,13 @@ def test_inspector_tabs_and_benchmark_badge():
     import sys
     sys.path.insert(0, str(ROOT))
     from dashboard import views
-    assert views.blind_headline() == "24 / 88"       # read from eval/results.md, not hard-coded
+    assert views.blind_headline() == "24 → 3 / 88"   # v2 → v2 + flag layer, read from eval/results.md
     at = _page("page_inspector", "P002")
     _ok(at)
     assert at.title[0].value == "Parser & Eval Inspector"
     assert [t.label for t in at.tabs] == ["Edge cases", "Browse all reports", "Review queue", "Evaluation", "Method"]
     html = _html(at)
-    assert "24 / 88 wrong &amp; unflagged" in html and "extracted by" in html
+    assert "24 → 3 / 88 wrong &amp; unflagged" in html and "extracted by" in html
 
 
 def test_single_as_of_date_everywhere():
@@ -225,7 +225,7 @@ def test_benchmark_table_uses_published_counts():
     at = _page("page_inspector", "P002")
     _ok(at)
     html = _html(at)
-    for cell in ("11 / 16", "13 / 16", "35 / 88", "61 / 88", "50 / 88", "24 / 88", "PRIMARY SAFETY KPI",
+    for cell in ("11 / 16", "13 / 16", "35 / 88", "61 / 88", "50 / 88", "24 / 88", "3 / 88", "68 / 88", "PRIMARY SAFETY KPI",
                  "Clinical safety impact"):
         assert cell in html, cell
 

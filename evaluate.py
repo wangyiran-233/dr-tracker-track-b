@@ -14,6 +14,12 @@ spurious or with a wrong scored field). "Flagged" means the pipeline raised at l
 of any type on that report, so a person sees it. "Wrong & unflagged" is the primary safety number:
 those errors reach the chart without anyone looking at them.
 
+Flag layer: the latest prompt is scored twice, with and without the deterministic flag layer
+(cinv/flag_layer.py). The layer only adds flags, so extraction metrics are identical; flag rate (share
+of reports with any flag) and false-alarm rate (share of fully correct reports that are flagged anyway)
+show its cost. For flag precision / recall, `distress` counts as `red_flag` and the other new flag
+types (not labelled in the gold or messy set) are ignored.
+
 Matching: within each report, every gold event is paired with the best
 predicted event for the same symptom (date > part of day > presence > count).
 Unpaired gold events are misses, unpaired predictions are spurious. Field
@@ -46,6 +52,13 @@ ROOT = Path(__file__).resolve().parent
 EVAL_FLAG_TYPES = {"intra_report_conflict", "cross_report_conflict", "severity_mismatch",
                    "unmapped_medication", "implausible_value", "duplicate_report", "red_flag"}
 SEVERITY_SYMPTOMS = {"nausea", "appetite_loss"}
+LAYER_SUFFIX = " + flag layer"
+
+
+def scored_flags(types) -> set[str]:
+    """Flag types as scored against labels: distress is handled as a red flag."""
+    types = set(types)
+    return types | ({"red_flag"} if "distress" in types else set())
 
 
 class Tally:
@@ -109,7 +122,7 @@ def match(gold: list[dict], pred: list[dict]):
 
 
 def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_flags) -> tuple[dict, list]:
-    tallies = {"free_text": Tally(), "questionnaire": Tally()}
+    tallies = {"free_text": Tally(), "questionnaire": Tally(), "all": Tally()}
     errors = []
     cross_by_report = defaultdict(set)
     for f in cross_flags:
@@ -171,7 +184,7 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
 
         # flags (report-level + cross-report, restricted to gold-labelled types)
         gold_flags = set(exp["flags"]) | set(exp["cross_report_flags"])
-        pred_flags = ({f.flag_type for f in rep.flags} | cross_by_report[rid]) & EVAL_FLAG_TYPES
+        pred_flags = scored_flags({f.flag_type for f in rep.flags} | cross_by_report[rid]) & EVAL_FLAG_TYPES
         for f in gold_flags:
             t.add("flag_recall", f in pred_flags)
             if f not in pred_flags:
@@ -191,6 +204,10 @@ def evaluate(gold_reports: list[dict], parsed: dict[str, ParsedReport], cross_fl
         flagged = bool(rep.flags) or bool(cross_by_report[rid])
         t.add("wrong_flagged", not report_ok and flagged)
         t.add("wrong_unflagged", not report_ok and not flagged)
+        lab = g["label_source"]
+        tallies["all"].add(f"flag_rate[{lab}]", flagged)
+        if report_ok:
+            tallies["all"].add(f"false_alarm[{lab}]", flagged)
         if rep.dropped:
             errs += [f"DROPPED    {d}" for d in rep.dropped]
         if rep.failed:
@@ -217,6 +234,7 @@ def _field(e: dict, k: str):
 # Blind messy set (labels: data/blind_review.csv, drafted by AI and reviewed by the author)
 # ---------------------------------------------------------------------------
 
+NEW_FLAG_TYPES = {"parser_disagreement", "distress", "other_symptom", "prompt_injection"}
 BLIND_SET = ROOT / "data" / "messy_blind_set.json"
 BLIND_LABELS = ROOT / "data" / "blind_review.csv"
 # Dates are only labelled (and scored) where resolving the date is the point of the category.
@@ -332,8 +350,9 @@ def evaluate_blind(blind: list[dict], parsed: dict[str, ParsedReport]) -> tuple[
                 errs.append(f"WRONG      {g['symptom_code']}: " + ", ".join(
                     f"{k} expected {exp[k]} got {got[k]}" for k in bad) + f"  evidence={p['evidence_span']!r}")
         wrong = bool(errs)
-        pred_flags = {f.flag_type for f in rep.flags}
-        flagged = bool(pred_flags)
+        all_flags = {f.flag_type for f in rep.flags}
+        flagged = bool(all_flags)
+        pred_flags = scored_flags(all_flags) - NEW_FLAG_TYPES
         if "red_flag" in b["flags"]:
             overall.add("red_flag_recall", "red_flag" in pred_flags)
         for f in sorted(b["flags"]):
@@ -352,8 +371,13 @@ def evaluate_blind(blind: list[dict], parsed: dict[str, ParsedReport]) -> tuple[
             t.add("report_correct", not wrong)
             t.add("wrong_flagged", wrong and flagged)
             t.add("wrong_unflagged", wrong and not flagged)
+            t.add("flag_rate", flagged)
+            if not wrong:
+                t.add("false_alarm", flagged)
+                if not b["flags"]:
+                    t.add("false_alarm_unlabelled", flagged)
         records.append({"report_id": b["report_id"], "category": b["category"], "input": b["text"],
-                        "wrong": wrong, "flagged": flagged, "pred_flags": sorted(pred_flags), "errors": errs})
+                        "wrong": wrong, "flagged": flagged, "pred_flags": sorted(all_flags), "errors": errs})
     return {"overall": overall, "by_category": by_cat}, records
 
 
@@ -369,6 +393,10 @@ BLIND_ROWS = [
     ("Report fully correct (symptom rows)", "report_correct"),
     ("Wrong & flagged (reports)", "wrong_flagged"),
     ("Wrong & unflagged (reports) - lower is better", "wrong_unflagged"),
+    ("Flag rate (reports with any flag)", "flag_rate"),
+    ("False-alarm rate (fully correct reports that are flagged)", "false_alarm"),
+    ("False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway)",
+     "false_alarm_unlabelled"),
 ]
 
 
@@ -381,8 +409,12 @@ def blind_markdown(res: dict[str, dict], recs: dict[str, list[dict]], blind: lis
     cats = list(dict.fromkeys(b["category"] for b in blind))
     md = [f"{len(blind)} reports ({len(cats)} failure categories x {len(blind) // len(cats)}), written by a "
           "different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran "
-          "(`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these "
-          "results. Severity and medication rows are not labelled here; dates are scored only for the 3 "
+          "(`data/blind_review.csv`).", "",
+          "**This is now a development set, not a blind test.** The rule baseline and LLM prompt v2 columns were "
+          "scored blind (prompt v2 is unchanged). The deterministic flag layer (`cinv/flag_layer.py`) was written "
+          "*after* these results and these 88 reports had been seen, so its column is an in-sample number and "
+          "overstates how well it generalises; a fresh blind set is needed to measure it.", "",
+          "Severity and medication rows are not labelled here; dates are scored only for the 3 "
           "date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is "
           "parsed on its own (no previous report, no medication orders). \"Wrong\" = at least one symptom "
           "row missed, spurious or with a wrong presence / count / date; flags are scored separately.", "",
@@ -428,18 +460,20 @@ def run_blind(ctx: Context, offline: bool, no_llm: bool, out: Path) -> list[str]
             print(f"Blind set: LLM {PROMPT_VERSION} skipped ({len(missing)} reports not cached, no API key).")
         else:
             parsers[f"LLM prompt {PROMPT_VERSION}"] = (parse_free_text_llm(ex), ex)
+            parsers[f"LLM prompt {PROMPT_VERSION}{LAYER_SUFFIX}"] = (parse_free_text_llm(ex), ex)
     res, recs = {}, {}
     for name, (tp, ex) in parsers.items():
+        layer = name.endswith(LAYER_SUFFIX)
         try:
             parsed, _ = run(rows, ctx, tp, fallback=ex is None,
-                            should_stop=(lambda: ex.fatal_error) if ex else None)
+                            should_stop=(lambda: ex.fatal_error) if ex else None, flag_layer=layer)
         except FatalLLMError as e:
             raise SystemExit(f"Blind evaluation stopped, no results written: {e}")
         res[name], recs[name] = evaluate_blind(blind, parsed)
-        slug = f"blind_llm_{ex.prompt_version}" if ex else "blind_rule"
+        slug = (f"blind_llm_{ex.prompt_version}" + ("_flaglayer" if layer else "")) if ex else "blind_rule"
         (out / f"predictions_{slug}.json").write_text(json.dumps(
             {rid: json.loads(rep.model_dump_json()) for rid, rep in parsed.items()}, indent=1), encoding="utf-8")
-        if ex:
+        if ex and not layer:
             print(f"Blind set, {name}: Groq API calls {ex.calls} (rest from cache); "
                   f"reports with no usable LLM output: {sum(r.failed for r in parsed.values())}")
     return blind_markdown(res, recs, blind)
@@ -470,11 +504,19 @@ def fmt(c: tuple[int, int]) -> str:
     return "-" if n == 0 else f"{ok / n:.0%} ({ok}/{n})"
 
 
-def table(results: dict[str, dict], subset: str) -> str:
+FLAG_ROWS = [
+    ("Flag rate - routine", "flag_rate[generator]"),
+    ("Flag rate - tricky", "flag_rate[hand_annotated]"),
+    ("False-alarm rate - routine (correct reports flagged)", "false_alarm[generator]"),
+    ("False-alarm rate - tricky (correct reports flagged)", "false_alarm[hand_annotated]"),
+]
+
+
+def table(results: dict[str, dict], subset: str, rows=None) -> str:
     methods = list(results)
     head = "| Metric | " + " | ".join(methods) + " |\n|---|" + "---|" * len(methods) + "\n"
     lines = []
-    for label, key in ROWS:
+    for label, key in rows or ROWS:
         cells = [fmt(results[m][subset].get(key)) for m in methods]
         if all(c == "-" for c in cells):
             continue
@@ -527,27 +569,30 @@ def main() -> None:
                 print(f"LLM {pv} skipped: GROQ_API_KEY not set and {len(missing)} gold reports are not cached.")
                 continue
             parsers[f"LLM prompt {pv}"] = (parse_free_text_llm(ex), ex)
+            if pv == args.prompt_versions[-1]:
+                parsers[f"LLM prompt {pv}{LAYER_SUFFIX}"] = (parse_free_text_llm(ex), ex)
 
     results, all_errors = {}, {}
     args.out.mkdir(exist_ok=True)
     model = None
     for name, (tp, ex) in parsers.items():
         is_llm = ex is not None
+        layer = name.endswith(LAYER_SUFFIX)
         try:
             # no rule fallback for LLM columns: a failed call counts as an LLM failure
             parsed, cross = run(rows, ctx, tp, fallback=not is_llm,
-                                should_stop=(lambda: ex.fatal_error) if is_llm else None)
+                                should_stop=(lambda: ex.fatal_error) if is_llm else None, flag_layer=layer)
         except FatalLLMError as e:
             raise SystemExit(f"LLM evaluation stopped, no results written: {e}")
         tallies, errors = evaluate(gold, parsed, cross)
         results[name] = {k: v for k, v in tallies.items()}
         all_errors[name] = errors
-        slug = f"llm_{ex.prompt_version}" if is_llm else "rule"
+        slug = (f"llm_{ex.prompt_version}" + ("_flaglayer" if layer else "")) if is_llm else "rule"
         (args.out / f"predictions_{slug}.json").write_text(json.dumps(
             {rid: json.loads(rep.model_dump_json()) for rid, rep in parsed.items()}, indent=1), encoding="utf-8")
         n_failed = sum(rep.failed for rep in parsed.values())
         results[name]["_failed"] = n_failed
-        if is_llm:
+        if is_llm and not layer:
             model = ex.model
             print(f"{name}: Groq API calls {ex.calls} (rest from cache); "
                   f"reports with no usable LLM output: {n_failed}")
@@ -568,10 +613,16 @@ def main() -> None:
           "Reports where the parser produced no usable output (scored as all-missed): "
           + ", ".join(f"{m} {results[m]['_failed']}" for m in results), "",
           f"## Questionnaire reports (n={n_q})", "", table(results, "questionnaire"), "",
-          "## Blind messy set", ""]
+          f"## Flag rate and false alarms - gold set (all {len(gold)} reports)", "",
+          "Flag rate = reports with at least one flag of any type (including info). False-alarm rate = fully "
+          "correct reports that are flagged anyway. Routine = generator-labelled, tricky = hand-annotated.", "",
+          table(results, "all", FLAG_ROWS), "",
+          "## Blind messy set (now a development set)", ""]
     md += (run_blind(ctx, args.offline, args.no_llm, args.out) if not args.no_blind
            else ["Not run (--no-blind)."]) + [""]
     for name, errors in all_errors.items():
+        if name.endswith(LAYER_SUFFIX):     # same rows as without the layer; only flags differ
+            continue
         md += [f"## Errors - {name} ({len(errors)} reports with at least one error)", ""]
         for e in errors:
             inp = e["input"] if isinstance(e["input"], str) else json.dumps(e["input"])
@@ -582,6 +633,7 @@ def main() -> None:
 
     print(f"\nFREE TEXT (n={n_ft})\n" + table(results, "free_text"))
     print(f"\nQUESTIONNAIRE (n={n_q})\n" + table(results, "questionnaire"))
+    print("\nFLAG RATE / FALSE ALARMS (gold)\n" + table(results, "all", FLAG_ROWS))
     for name, errors in all_errors.items():
         if name == f"LLM prompt {latest}":
             print(f"\n{name} errors ({len(errors)} reports):")

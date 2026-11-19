@@ -171,7 +171,7 @@ def reports(patient_id: str | None = None) -> pd.DataFrame:
                     r.parse_status,
                     (SELECT COUNT(*) FROM review_flags f WHERE f.report_id = r.report_id AND f.status = 'open') AS open_flags,
                     (SELECT COUNT(*) FROM review_flags f WHERE f.report_id = r.report_id AND f.status = 'open'
-                       AND f.flag_type = 'red_flag') AS red_flags
+                       AND f.flag_type IN ('red_flag', 'distress')) AS red_flags
              FROM raw_reports r"""
     params: list = []
     if patient_id:

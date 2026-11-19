@@ -93,10 +93,8 @@ reports, the review queue, evaluation results and the method.
 
 ### Schema design
 
-- **AI:** Claude (coding assistant) drafted the SQL, views and queries.
-- **Human:** the author set the principles above (immutable text, NULL for unknown, ranges, keep-and-flag
-  conflicts, no CTCAE grades stored because they are clinician-assigned) and checked every table against real
-  edge cases.
+Claude drafted the schema; the author decided the open design questions (symptom scope, conflict rule,
+medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and reviewed edge cases.
 
 ### Parser
 
@@ -105,6 +103,16 @@ reports, the review queue, evaluation results and the method.
   correction?".
 - **Code does everything checkable**: dates (the LLM returns only a relative day offset), mapping drug mentions to
   the dictionary, the verbatim evidence check, the plausibility guard, and **every review flag**.
+- **Deterministic flag layer** (`cinv/flag_layer.py`) runs after the LLM, prompt unchanged. It never edits the LLM's
+  rows, it only adds flags:
+  - `low_confidence`: presence `uncertain`; hedging (maybe, idk, i think, not sure, ??, "like N"); empty,
+    emoji-only or non-English text; second-hand accounts (says, told me, husband / mom …); uncertain dates
+    (day N, the other day, "or was that yesterday").
+  - `parser_disagreement`: the keyword-rule parser and the LLM disagree on symptoms, presence or counts.
+  - `distress` (scared, can't do this, give up, 😭 …): urgent, shown as a red flag.
+  - `other_symptom`: complaints outside the schema (fever, diarrhea, constipation, hair loss, fatigue, pain);
+    fever also raises a `red_flag`.
+  - `prompt_injection`: "ignore previous instructions", "SYSTEM:", "admin mode", JSON-like text.
 - Questionnaires are parsed fully deterministically. A keyword-rule parser is both the baseline and the per-report
   fallback.
 
@@ -131,7 +139,10 @@ reports, the review queue, evaluation results and the method.
 - Text written by a **different model** (Groq `qwen/qwen3.8-27b`) so the parser's model never writes its own
   test set; label drafts by Claude.
 - **The author reviewed all 88 labels and revised 9 before any parser ran** (`data/blind_review.csv`). The prompt
-  and rules were not changed after seeing the results.
+  was not changed after seeing the results.
+- **It is now a development set, not a blind test.** The rule baseline and prompt v2 were scored blind, but the
+  deterministic flag layer was written *after* these 88 results had been seen, so its numbers below are in-sample.
+  A fresh blind set is needed to measure it.
 
 ### Evaluation results (rules vs. LLM prompt v2)
 
@@ -149,18 +160,34 @@ claimed.
 
 Questionnaires (n = 7): 100% on every field for both (deterministic).
 
-**Blind messy set (n = 88)**
+Flag rate and false alarms on the gold set (all 30 reports; false alarm = a fully correct report that is flagged
+anyway):
 
-| | Rule baseline | LLM v2 |
+| | LLM v2 | LLM v2 + flag layer |
 |---|---|---|
-| Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 |
-| Report fully correct | 35/88 | 61/88 |
-| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 |
-| Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 |
+| Flag rate — routine · tricky | 1/12 · 6/18 | 1/12 · 11/18 |
+| False-alarm rate — routine · tricky | 0/10 · 5/15 | 0/10 · 10/15 |
+
+The 3 wrong & unflagged gold reports (part of day / date slips with no hedging cue) are not caught by the layer.
+
+**Messy set (n = 88; blind for rules and v2, development set for the flag layer)**
+
+| | Rule baseline | LLM v2 | LLM v2 + flag layer (in-sample) |
+|---|---|---|---|
+| Symptom rows recall · precision | 75/124 · 75/78 | 111/124 · 111/114 | same as v2 (flags only) |
+| Report fully correct | 35/88 | 61/88 | 61/88 |
+| **Wrong & unflagged** · wrong & flagged | **50/88** · 3/88 | **24/88** · 3/88 | **3/88** · 24/88 |
+| Review-flag recall · red-flag recall | 4/61 · 2/9 | 11/61 · 4/9 | 42/61 · 9/9 |
+| **Flag rate** | 5/88 | 12/88 | **68/88** |
+| **False-alarm rate** (correct reports flagged) | 2/35 | 9/61 | **44/61** |
+| … of which no flag was labelled for the report | 0/16 | 0/25 | 12/25 |
 
 **Why "wrong & unflagged" is the main safety metric:** a flagged error goes to a nurse with the patient's words
-next to it; an unflagged error looks exactly like a correct value on the chart. The LLM is clearly better, but 24
-of its 27 wrong reports are unflagged. **The flag layer, not extraction, is the weak point.**
+next to it; an unflagged error looks exactly like a correct value on the chart. Without the layer, 24 of the LLM's
+27 wrong reports were unflagged. The flag layer brings that to 3/88, **but the price is review load**: 77% of
+messy reports get a flag, and 44 of the 61 correct ones are flagged too (32 of those were reports whose reviewed
+labels already asked for a flag, e.g. hedged counts; 12 were not). `parser_disagreement` and `low_confidence`
+are the main sources, because the keyword rules miss many symptoms the LLM finds. These numbers are in-sample.
 
 ### Key judgments made by the author
 
@@ -185,9 +212,10 @@ of its 27 wrong reports are unflagged. **The flag layer, not extraction, is the 
 - Record **clock times the patient states** ("took it at 8", "around 2pm"), marked exact or approximate.
 
 **System**
-- **Deterministic flag layer**: uncertain presence, distress, non-English text, out-of-schema complaints.
+- **Measure the flag layer on a fresh blind set**, then cut its false alarms (narrow `parser_disagreement` to
+  disagreements the rules are reliable on, e.g. counts and explicit negations).
 - **Hybrid routing**: rules for routine reports they cover with high confidence, LLM for the rest; the router's
-  acceptance rule is judged by wrong & unflagged on the blind set.
+  acceptance rule is judged by wrong & unflagged (and flag rate) on a blind set.
 - **Similarity check against a labelled example library**: compare each evidence span with reviewed examples (local
   embeddings); flag disagreements, never override.
 - **PRN questionnaire by drug name** when a patient has several active PRN orders (today the dose is attributed to

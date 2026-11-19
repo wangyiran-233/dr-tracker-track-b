@@ -11,6 +11,7 @@ import re
 import pandas as pd
 import streamlit as st
 
+from cinv.flag_layer import RED_FLAG_TYPES
 from cinv.models import MAX_PLAUSIBLE_EPISODES
 
 from . import data
@@ -26,7 +27,11 @@ FLAG_LABELS = {
     "cross_report_conflict": "Conflict between reports", "severity_mismatch": "Severity mismatch",
     "implausible_value": "Implausible value", "unmapped_medication": "Unrecognised medication",
     "duplicate_report": "Duplicate report", "low_confidence": "Low confidence",
+    # deterministic flag layer (cinv/flag_layer.py)
+    "parser_disagreement": "Rules vs LLM disagree", "distress": "Distress",
+    "other_symptom": "Other symptom (outside schema)", "prompt_injection": "Prompt injection",
 }
+RED_TYPES = set(RED_FLAG_TYPES)       # red_flag + distress: urgent, shown as red flags
 SEVERITY_ICON = {"urgent": "🔴", "warning": "⚠️", "info": "ℹ️"}
 HL = {   # evidence highlight tints (low alpha; text stays in ink)
     "nausea": "rgba(20,184,166,.24)", "vomiting": "rgba(220,38,38,.18)", "retching": "rgba(220,38,38,.18)",
@@ -168,7 +173,7 @@ def attention_items(snap: pd.DataFrame) -> list[dict]:
     queue = data.review_queue()
     items: list[dict] = []
 
-    for _, f in queue[queue["flag_type"] == "red_flag"].iterrows():
+    for _, f in queue[queue["flag_type"].isin(RED_TYPES)].iterrows():
         pid, when = f["patient_id"], pd.Timestamp(f["submitted_at"])
         cp = data.cycle_position(pid, when.normalize())
         items.append({"kind": "red", "pid": pid, "name": names.get(pid, pid),
@@ -372,7 +377,7 @@ def patient_pills() -> str:
     ids = list(pts["patient_id"])
     names = dict(zip(pts["patient_id"], pts["display_name"].map(short_name)))
     q = data.review_queue()
-    red = set(q.query("flag_type == 'red_flag'")["patient_id"])
+    red = set(q[q["flag_type"].isin(RED_TYPES)]["patient_id"])
     warn = set(data.snapshot().query("below_weight_alert == 1")["patient_id"])
     if st.session_state.get("pid") not in ids:
         st.session_state["pid"] = ids[0]
@@ -522,7 +527,7 @@ def review_drawer(pid: str) -> None:
             fid = int(f["flag_id"])
             with st.container(key=f"flagcard-{fid}"):
                 body, act = st.columns([5, 1], vertical_alignment="center")
-                urgent = _tag("RED FLAG", RED, RED_TINT, RED_LINE) if f["flag_type"] == "red_flag" else ""
+                urgent = _tag("RED FLAG", RED, RED_TINT, RED_LINE) if f["flag_type"] in RED_TYPES else ""
                 when = str(f["submitted_at"]).replace("T", " ")[:16]
                 linked = data.flag_evidence(fid)
                 reason = _reason(f["description"]) if linked else f["description"]   # keep rejected text visible
@@ -558,7 +563,8 @@ def page_deepdive() -> None:
     with right:
         pid = patient_pills()
     p = data.patients().set_index("patient_id").loc[pid]
-    reds = data.open_flags(pid).query("flag_type == 'red_flag'")
+    of = data.open_flags(pid)
+    reds = of[of["flag_type"].isin(RED_TYPES)]
     below = bool(data.snapshot().set_index("patient_id").loc[pid, "below_weight_alert"])
     badges = (" :red-badge[RED FLAG · OPEN]" if len(reds) else "") + (" :orange-badge[WEIGHT ALERT]" if below else "")
     with left:
@@ -781,7 +787,7 @@ def _report_detail(r: pd.Series, rid: str) -> None:
             st.caption("None.")
         for _, f in flags.iterrows():
             with st.container(border=True):
-                st.markdown(f"{SEVERITY_ICON[f['severity']]} **{FLAG_LABELS[f['flag_type']]}** · {f['status']}  \n"
+                st.markdown(f"{SEVERITY_ICON[f['severity']]} **{FLAG_LABELS.get(f['flag_type'], f['flag_type'])}** · {f['status']}  \n"
                             f"{f['description']}")
                 if f["status"] == "open":
                     _flag_actions(int(f["flag_id"]), "rep")
@@ -800,16 +806,20 @@ def _md_sections(path) -> dict[str, str]:
     return {p.split("\n", 1)[0].strip(): p.split("\n", 1)[1] if "\n" in p else "" for p in parts[1:]}
 
 
+def _messy_section(secs: dict[str, str]) -> str:
+    return next((v for k, v in secs.items() if k.startswith("Blind messy set")), "")
+
+
 def blind_headline() -> str | None:
-    """'24 / 88' style count for LLM prompt v2 'wrong & unflagged' on the blind messy set,
-    read from the published eval/results.md (None if the file or row is missing)."""
-    sec = _md_sections(data.EVAL_DIR / "results.md").get("Blind messy set", "")
+    """'24 → 3 / 88' style count for 'wrong & unflagged' on the 88-report messy set: LLM prompt v2
+    without, then with the deterministic flag layer (last two columns of eval/results.md)."""
+    sec = _messy_section(_md_sections(data.EVAL_DIR / "results.md"))
     for line in sec.splitlines():
         if line.startswith("| Wrong & unflagged"):
             cells = [c.strip() for c in line.strip("|").split("|")]
-            m = re.search(r"\((\d+)/(\d+)\)", cells[-1])
-            if m:
-                return f"{m.group(1)} / {m.group(2)}"
+            a, b = (re.search(r"\((\d+)/(\d+)\)", c) for c in cells[-2:])
+            if a and b:
+                return f"{a.group(1)} → {b.group(1)} / {b.group(2)}"
     return None
 
 
@@ -863,7 +873,8 @@ def _eval_tab() -> None:
         "given as context so corrections can be resolved.  \n"
         "**Read with care:** 23 free-text reports, so one report moves a metric by several points; the keyword "
         "baseline is optimistic because routine reports come from templates and the rules were written after "
-        "seeing them. The blind messy set below is the fairer test.")
+        "seeing them. The messy set below was the fairer test for rules and v2 (it is now a development set "
+        "for the flag layer).")
     err_v2 = next((k for k in v2 if k.startswith("Errors - LLM prompt v2")), None)
     if err_v2:
         with st.expander(f"LLM prompt v2 — {err_v2.split('(')[-1].rstrip(')')}"):
@@ -876,9 +887,9 @@ def _eval_tab() -> None:
     if q:
         with st.expander("Questionnaire reports (deterministic in all columns)"):
             st.markdown(v2[q])
-    blind = v2.get("Blind messy set")
+    blind = _messy_section(v2)
     if blind:
-        st.subheader("Blind messy set (88 reports, 22 categories × 4)")
+        st.subheader("Messy set (88 reports, 22 categories × 4) — now a development set")
         summary, _, rest = blind.partition("### ")
         st.markdown(summary)
         if rest:
@@ -948,7 +959,7 @@ def guardrail_rationale(rids: list[str]) -> list[str]:
                 out.append(f"The parser copied {lit} as written; the code caps any count above "
                            f"{MAX_PLAUSIBLE_EPISODES} episodes, stores it as “at least 1” (min 1, max NULL) and "
                            f"raises an implausible_value flag instead of charting the number.")
-            elif t == "red_flag":
+            elif t == "red_flag" and f["description"].startswith("Patient reports not keeping fluids"):
                 out.append("A present unable_to_keep_fluids row from free text always raises an urgent red_flag — "
                            "a fixed code rule, not the model's judgement — so it is listed first in Needs Attention while open.")
             elif t == "severity_mismatch":
@@ -964,7 +975,7 @@ def guardrail_rationale(rids: list[str]) -> list[str]:
                 out.append(f"{what}. Both rows are kept, an intra_report_conflict flag is raised, and the daily "
                            f"chart takes the larger count and marks the day.")
             else:
-                out.append(f"{FLAG_LABELS.get(t, t)}: {_reason(f['description'])}.")
+                out.append(f"{FLAG_LABELS.get(t, t)}: {_reason(f['description']).rstrip('.')}.")
         for _, s in data.superseded_by(rid).iterrows():
             out.append(f"{s['corrected_in']} was parsed as a correction, so the earlier {s['symptom_code']} row "
                        f"(event {s['event_id']} in {rid}, same day) was set to superseded and the new row links to "
@@ -1051,13 +1062,14 @@ def _cell(text: str) -> tuple[int, int, str] | None:
 
 
 def _row(section: str, metric: str) -> tuple | None:
-    """(rule, LLM v2) cells of one results.md table row: first and last value column."""
+    """(rule, LLM v2, LLM v2 + flag layer) cells of one results.md table row: first value column and
+    the last two (evaluate.py always puts the flag-layer column last, right after v2)."""
     for line in section.splitlines():
         if line.startswith(f"| {metric}"):
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            rule, v2 = _cell(cells[1]), _cell(cells[-1])
-            if rule and v2:
-                return rule, v2
+            rule, v2, layer = _cell(cells[1]), _cell(cells[-2]), _cell(cells[-1])
+            if rule and v2 and layer:
+                return rule, v2, layer
     return None
 
 
@@ -1067,18 +1079,25 @@ BENCH = [
      "Gold set · hand-annotated tricky free text",
      "Every field right on the hardest hand-labelled reports (corrections, hedges, exaggerated counts)", False),
     ("Blind messy set", "Symptom rows - recall", "Symptom rows found (recall)",
-     "Blind messy set · 88 reports, 22 categories",
-     "A missed row is a symptom the provider never sees: v2 misses {vm} of {d}, rules miss {rm}", False),
+     "Messy set · 88 reports, 22 categories",
+     "A missed row is a symptom the provider never sees: v2 misses {vm} of {d}, rules miss {rm}; "
+     "the flag layer adds flags only, so rows are unchanged", False),
     ("Blind messy set", "Report fully correct", "Report fully correct (symptom rows)",
-     "Blind messy set · 88 reports, 22 categories",
+     "Messy set · 88 reports, 22 categories",
      "Reports whose symptom rows are all right without any human review", False),
     ("Blind messy set", "Red flags - recall", "Red flags caught (recall)",
-     "Blind messy set · reports labelled red_flag",
-     "Main open gap: v2 still misses {vm} of {d} red flags written in messy wording", False),
+     "Messy set · reports labelled red_flag (distress counts as red flag)",
+     "v2 alone misses {vm} of {d}; with the flag layer {lm} missed (in-sample)", False),
     ("Blind messy set", "Wrong & unflagged", "Wrong & unflagged (silent error)",
-     "Blind messy set · 88 reports, 22 categories",
-     "Errors that reach the chart with no flag: {rn} → {vn} of {d}. Lower is better; still about 1 in 4, which "
-     "is why every chart point keeps its evidence quote", True),
+     "Messy set · 88 reports, 22 categories",
+     "Errors that reach the chart with no flag: rules {rn}, v2 {vn}, v2 + flag layer {ln} of {d}. In-sample: "
+     "the layer was written after seeing these reports", True),
+    ("Blind messy set", "Flag rate", "Flag rate (cost)",
+     "Messy set · 88 reports, 22 categories",
+     "Share of reports a nurse has to look at: v2 {vn}, v2 + flag layer {ln} of {d}", False),
+    ("Blind messy set", "False-alarm rate (fully", "False alarms (cost)",
+     "Messy set · fully correct reports",
+     "Correct reports flagged anyway: v2 {vn}, v2 + flag layer {ln} of {d}", False),
 ]
 
 
@@ -1090,15 +1109,17 @@ def benchmark_table() -> None:
         found = _row(sec, metric)
         if not found:
             continue
-        (rn, d, rp), (vn, _, vp) = found
+        (rn, d, rp), (vn, dv, vp), (ln, dl, lp) = found
         rule = f"{rn} / {d} <span class='pct'>({rp}%)</span>"
-        v2 = f"{vn} / {d} <span class='pct'>({vp}%)</span>"
+        v2 = f"{vn} / {dv} <span class='pct'>({vp}%)</span>"
+        lay = f"{ln} / {dl} <span class='pct'>({lp}%)</span>"
         if primary:
             rule, v2 = f"<span class='bad'>{rule}</span>", f"<span class='warn'>{v2}</span>"
         kpi = _tag("PRIMARY SAFETY KPI", TEAL, TEAL_TINT, TEAL_LINE) if primary else ""
         rows.append(f"<tr class='{'kpi' if primary else ''}'><td><b>{esc(label)}</b> {kpi}</td>"
-                    f"<td class='ds'>{esc(dataset)}</td><td class='num'>{rule}</td><td class='num v2'>{v2}</td>"
-                    f"<td>{esc(impact.format(rn=rn, vn=vn, d=d, rm=d - rn, vm=d - vn))}</td></tr>")
+                    f"<td class='ds'>{esc(dataset)}</td><td class='num'>{rule}</td><td class='num'>{v2}</td>"
+                    f"<td class='num v2'>{lay}</td>"
+                    f"<td>{esc(impact.format(rn=rn, vn=vn, ln=ln, d=dl, rm=d - rn, vm=dv - vn, lm=dl - ln))}</td></tr>")
     with st.container(key="card_bench"):
         if not rows:
             st.caption("eval/results.md not found — run evaluate.py --offline.")
@@ -1108,12 +1129,15 @@ def benchmark_table() -> None:
             f"<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:8px 16px;"
             f"flex-wrap:wrap'><div><div style='font-size:1.15rem;font-weight:700'>Extraction &amp; Safety "
             f"Guardrail Benchmark</div><div class='dt-small' style='font-size:.86rem'>Keyword-rule baseline vs LLM "
-            f"prompt v2 (Pydantic schema + verbatim-evidence check) · gold set (30 reports) and blind messy set "
-            f"(88 reports, 22 failure categories) · raw counts with percentages; small samples, no significance "
-            f"claimed</div></div>"
-            + (f"<span class='dt-chip'>{head} wrong &amp; unflagged · LLM v2</span>" if head else "") + "</div>"
+            f"prompt v2 (Pydantic schema + verbatim-evidence check) vs v2 + deterministic flag layer · gold set "
+            f"(30 reports) and messy set (88 reports, 22 failure categories; scored blind for rules and v2, but the "
+            f"flag layer was written after seeing it, so it is now a development set) · raw counts; small samples, "
+            f"no significance claimed</div></div>"
+            + (f"<span class='dt-chip'>{head} wrong &amp; unflagged · v2 → + flag layer</span>" if head else "")
+            + "</div>"
             f"<div style='overflow-x:auto'><table class='dt-bench'><thead><tr><th>Metric</th><th>Dataset</th>"
-            f"<th>Rule baseline</th><th>LLM v2</th><th>Clinical safety impact</th></tr></thead>"
+            f"<th>Rule baseline</th><th>LLM v2</th><th>v2 + flag layer</th><th>Clinical safety impact</th>"
+            f"</tr></thead>"
             f"<tbody>{''.join(rows)}</tbody></table></div>")
         st.caption("Full per-metric results, the per-category breakdown and every error are in the Evaluation tab.")
 
@@ -1157,7 +1181,7 @@ def page_inspector() -> None:
             if head:
                 st.html(f"<div style='text-align:center;margin-top:6px'><span class='dt-chip' "
                         f"style='font-size:.78rem'>{head} wrong &amp; unflagged</span><div class='dt-small' "
-                        f"style='margin-top:3px'>LLM prompt v2 · blind messy set</div></div>")
+                        f"style='margin-top:3px'>v2 → v2 + flag layer · messy set (dev)</div></div>")
 
     t_edge, t_words, t_queue, t_eval, t_method = st.tabs(["Edge cases", "Browse all reports", "Review queue",
                                                           "Evaluation", "Method"])

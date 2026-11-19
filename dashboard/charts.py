@@ -102,8 +102,9 @@ def trend_figure(d: pd.DataFrame, prn: pd.DataFrame, wt: pd.DataFrame, chemo: pd
     for a in fig.layout.annotations:
         a.update(x=0, xanchor="left", font=dict(size=13, color=INK2))
 
-    review_days = flags[(flags["flag_type"] != "red_flag") & (flags["severity"] != "info")]
-    red = flags[flags["flag_type"] == "red_flag"]
+    is_red = flags["flag_type"].isin(("red_flag", "distress"))
+    review_days = flags[~is_red & (flags["severity"] != "info")]
+    red = flags[is_red]
     n_all = d[d["symptom_code"] == "nausea"]
     v_all = d[d["symptom_code"] == "vomiting"]
 

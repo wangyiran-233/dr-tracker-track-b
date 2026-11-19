@@ -104,7 +104,8 @@ SELECT l.patient_id,
        (SELECT t.below_alert_line FROM v_weight_trend t
          WHERE t.patient_id = l.patient_id ORDER BY t.measured_date DESC LIMIT 1)                  AS below_weight_alert,
        (SELECT COUNT(*) FROM review_flags f
-         WHERE f.patient_id = l.patient_id AND f.status = 'open' AND f.flag_type = 'red_flag')     AS open_red_flags,
+         WHERE f.patient_id = l.patient_id AND f.status = 'open'
+           AND f.flag_type IN ('red_flag', 'distress'))                                            AS open_red_flags,
        (SELECT COUNT(*) FROM review_flags f
          WHERE f.patient_id = l.patient_id AND f.status = 'open' AND f.severity <> 'info')         AS open_flags
 FROM latest l

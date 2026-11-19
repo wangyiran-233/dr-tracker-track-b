@@ -220,7 +220,12 @@ CREATE TABLE review_flags (
                          'unmapped_medication',
                          'implausible_value',       -- e.g. 'threw up a hundred times'
                          'duplicate_report',
-                         'red_flag')),              -- surfaced at top of dashboard; not a diagnosis
+                         'red_flag',                -- surfaced at top of dashboard; not a diagnosis
+                         -- deterministic flag layer after the LLM (cinv/flag_layer.py):
+                         'parser_disagreement',     -- keyword rules and LLM disagree on symptom / presence / count
+                         'distress',                -- emotional distress; urgent, handled like red_flag
+                         'other_symptom',           -- complaint outside the 5 schema symptoms (fever, pain, ...)
+                         'prompt_injection')),      -- instruction-like text aimed at the parser
     severity         TEXT NOT NULL DEFAULT 'warning' CHECK (severity IN ('info', 'warning', 'urgent')),
     description      TEXT NOT NULL,
     status           TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'dismissed')),

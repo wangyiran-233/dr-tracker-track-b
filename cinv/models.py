@@ -18,7 +18,9 @@ IntakeStatus = Literal["taken", "missed", "vomited_up", "unknown"]
 Method = Literal["questionnaire", "rule", "llm", "manual"]
 FlagType = Literal["intra_report_conflict", "cross_report_conflict", "severity_mismatch",
                    "low_confidence", "unmapped_medication", "implausible_value",
-                   "duplicate_report", "red_flag"]
+                   "duplicate_report", "red_flag",
+                   # added by the deterministic flag layer (cinv/flag_layer.py)
+                   "parser_disagreement", "distress", "other_symptom", "prompt_injection"]
 
 SYMPTOMS: tuple[str, ...] = ("nausea", "vomiting", "retching", "appetite_loss", "unable_to_keep_fluids")
 COUNTED = {"vomiting", "retching"}          # symptoms that have episode counts

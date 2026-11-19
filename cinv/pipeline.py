@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Callable
 
 from .common import Context, postprocess
+from .flag_layer import apply_flag_layer
 from .llm import FatalLLMError
 from .models import COUNTED, LOW_CONFIDENCE, FlagCandidate, ParsedReport, SymptomEvent
 from .questionnaire import parse_questionnaire
@@ -47,7 +48,10 @@ def with_rule_fallback(text_parser: TextParser) -> TextParser:
     return _wrapped
 
 
-def parse_report(row: dict, ctx: Context, text_parser: TextParser, fallback: bool = True) -> ParsedReport:
+def parse_report(row: dict, ctx: Context, text_parser: TextParser, fallback: bool = True,
+                 flag_layer: bool = True) -> ParsedReport:
+    """flag_layer=True adds the deterministic flags of cinv/flag_layer.py to LLM-parsed reports
+    (evaluation turns it off to score the LLM's own flags)."""
     tp = with_rule_fallback(text_parser) if fallback else text_parser
     if row["source"] == "questionnaire":
         rep = parse_questionnaire(row["report_id"], row["patient_id"], row["questionnaire_json"],
@@ -55,7 +59,8 @@ def parse_report(row: dict, ctx: Context, text_parser: TextParser, fallback: boo
     else:
         rep = tp(row["report_id"], row["patient_id"], row["raw_text"], row["submitted_at"], ctx)
     postprocess(rep)
-    rep.flags = dedupe_flags(rep.flags + report_flags(rep))
+    extra = apply_flag_layer(rep, row, ctx) if flag_layer else []
+    rep.flags = dedupe_flags(rep.flags + report_flags(rep) + extra)
     return rep
 
 
@@ -248,7 +253,7 @@ def cross_report_pass(rows: list[dict], parsed: dict[str, ParsedReport]) -> list
 
 def run(rows: list[dict], ctx: Context, text_parser: TextParser,
         progress: Callable[[int, int], None] | None = None, fallback: bool = True,
-        should_stop: Callable[[], str | None] | None = None,
+        should_stop: Callable[[], str | None] | None = None, flag_layer: bool = True,
         ) -> tuple[dict[str, ParsedReport], list[FlagCandidate]]:
     """fallback=False is used for evaluation: a failed LLM call is scored as an
     LLM failure, not silently replaced by rule output. should_stop() returning
@@ -256,7 +261,7 @@ def run(rows: list[dict], ctx: Context, text_parser: TextParser,
     rows = sorted(rows, key=lambda r: (r["submitted_at"], r["report_id"]))
     parsed = {}
     for n, r in enumerate(rows, 1):
-        parsed[r["report_id"]] = parse_report(r, ctx, text_parser, fallback)
+        parsed[r["report_id"]] = parse_report(r, ctx, text_parser, fallback, flag_layer)
         if should_stop and (msg := should_stop()):
             raise FatalLLMError(f"aborted after {n}/{len(rows)} reports: {msg}")
         if progress:

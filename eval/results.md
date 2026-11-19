@@ -8,93 +8,111 @@ Gold set: 30 reports (23 free text, 7 questionnaires). Questionnaire fields are 
 
 ## Free-text reports (n=23)
 
-| Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 |
-|---|---|---|---|
-| Symptom detection - precision | 100% (39/39) | 100% (39/39) | 100% (39/39) |
-| Symptom detection - recall | 98% (39/40) | 98% (39/40) | 98% (39/40) |
-| Presence (present/absent/uncertain) | 97% (38/39) | 100% (39/39) | 100% (39/39) |
-| Episode count (min & max) | 93% (14/15) | 100% (15/15) | 100% (15/15) |
-| Severity level | 94% (17/18) | 100% (18/18) | 100% (18/18) |
-| Date (occurred_date) | 100% (39/39) | 100% (39/39) | 97% (38/39) |
-| Part of day | 90% (35/39) | 85% (33/39) | 92% (36/39) |
-| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (6/6) | 100% (6/6) | 100% (6/6) |
-| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (6/6) | 100% (6/6) | 100% (6/6) |
-| Review flags - precision | 100% (4/4) | 100% (4/4) | 100% (5/5) |
-| Review flags - recall | 80% (4/5) | 80% (4/5) | 100% (5/5) |
-| Correction linked to original | 0% (0/1) | 0% (0/1) | 100% (1/1) |
-| Report fully correct - hand-annotated tricky | 69% (11/16) | 75% (12/16) | 81% (13/16) |
-| Report fully correct - routine | 100% (7/7) | 86% (6/7) | 71% (5/7) |
-| Wrong & flagged (reports; goes to the review queue) | 9% (2/23) | 9% (2/23) | 9% (2/23) |
-| Wrong & unflagged (reports; reaches the chart unseen) - lower is better | 13% (3/23) | 13% (3/23) | 13% (3/23) |
+| Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
+|---|---|---|---|---|
+| Symptom detection - precision | 100% (39/39) | 100% (39/39) | 100% (39/39) | 100% (39/39) |
+| Symptom detection - recall | 98% (39/40) | 98% (39/40) | 98% (39/40) | 98% (39/40) |
+| Presence (present/absent/uncertain) | 97% (38/39) | 100% (39/39) | 100% (39/39) | 100% (39/39) |
+| Episode count (min & max) | 93% (14/15) | 100% (15/15) | 100% (15/15) | 100% (15/15) |
+| Severity level | 94% (17/18) | 100% (18/18) | 100% (18/18) | 100% (18/18) |
+| Date (occurred_date) | 100% (39/39) | 100% (39/39) | 97% (38/39) | 97% (38/39) |
+| Part of day | 90% (35/39) | 85% (33/39) | 92% (36/39) | 92% (36/39) |
+| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (6/6) | 100% (6/6) | 100% (6/6) | 100% (6/6) |
+| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (6/6) | 100% (6/6) | 100% (6/6) | 100% (6/6) |
+| Review flags - precision | 100% (4/4) | 100% (4/4) | 100% (5/5) | 100% (5/5) |
+| Review flags - recall | 80% (4/5) | 80% (4/5) | 100% (5/5) | 100% (5/5) |
+| Correction linked to original | 0% (0/1) | 0% (0/1) | 100% (1/1) | 100% (1/1) |
+| Report fully correct - hand-annotated tricky | 69% (11/16) | 75% (12/16) | 81% (13/16) | 81% (13/16) |
+| Report fully correct - routine | 100% (7/7) | 86% (6/7) | 71% (5/7) | 71% (5/7) |
+| Wrong & flagged (reports; goes to the review queue) | 9% (2/23) | 9% (2/23) | 9% (2/23) | 9% (2/23) |
+| Wrong & unflagged (reports; reaches the chart unseen) - lower is better | 13% (3/23) | 13% (3/23) | 13% (3/23) | 13% (3/23) |
 
-Symptom detection F1: Rule baseline 0.99, LLM prompt v1 0.99, LLM prompt v2 0.99
+Symptom detection F1: Rule baseline 0.99, LLM prompt v1 0.99, LLM prompt v2 0.99, LLM prompt v2 + flag layer 0.99
 
-Reports where the parser produced no usable output (scored as all-missed): Rule baseline 0, LLM prompt v1 0, LLM prompt v2 0
+Reports where the parser produced no usable output (scored as all-missed): Rule baseline 0, LLM prompt v1 0, LLM prompt v2 0, LLM prompt v2 + flag layer 0
 
 ## Questionnaire reports (n=7)
 
-| Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 |
+| Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
+|---|---|---|---|---|
+| Symptom detection - precision | 100% (29/29) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
+| Symptom detection - recall | 100% (29/29) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
+| Presence (present/absent/uncertain) | 100% (29/29) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
+| Episode count (min & max) | 100% (8/8) | 100% (8/8) | 100% (8/8) | 100% (8/8) |
+| Severity level | 100% (10/10) | 100% (10/10) | 100% (10/10) | 100% (10/10) |
+| Date (occurred_date) | 100% (29/29) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
+| Part of day | 100% (29/29) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
+| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Review flags - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Review flags - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Report fully correct - hand-annotated tricky | 100% (2/2) | 100% (2/2) | 100% (2/2) | 100% (2/2) |
+| Report fully correct - routine | 100% (5/5) | 100% (5/5) | 100% (5/5) | 100% (5/5) |
+| Wrong & flagged (reports; goes to the review queue) | 0% (0/7) | 0% (0/7) | 0% (0/7) | 0% (0/7) |
+| Wrong & unflagged (reports; reaches the chart unseen) - lower is better | 0% (0/7) | 0% (0/7) | 0% (0/7) | 0% (0/7) |
+
+## Flag rate and false alarms - gold set (all 30 reports)
+
+Flag rate = reports with at least one flag of any type (including info). False-alarm rate = fully correct reports that are flagged anyway. Routine = generator-labelled, tricky = hand-annotated.
+
+| Metric | Rule baseline | LLM prompt v1 | LLM prompt v2 | LLM prompt v2 + flag layer |
+|---|---|---|---|---|
+| Flag rate - routine | 0% (0/12) | 0% (0/12) | 8% (1/12) | 8% (1/12) |
+| Flag rate - tricky | 33% (6/18) | 28% (5/18) | 33% (6/18) | 61% (11/18) |
+| False-alarm rate - routine (correct reports flagged) | 0% (0/12) | 0% (0/11) | 0% (0/10) | 0% (0/10) |
+| False-alarm rate - tricky (correct reports flagged) | 31% (4/13) | 21% (3/14) | 33% (5/15) | 67% (10/15) |
+
+## Blind messy set (now a development set)
+
+88 reports (22 failure categories x 4), written by a different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran (`data/blind_review.csv`).
+
+**This is now a development set, not a blind test.** The rule baseline and LLM prompt v2 columns were scored blind (prompt v2 is unchanged). The deterministic flag layer (`cinv/flag_layer.py`) was written *after* these results and these 88 reports had been seen, so its column is an in-sample number and overstates how well it generalises; a fresh blind set is needed to measure it.
+
+Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
+
+| Metric | Rule baseline | LLM prompt v2 | LLM prompt v2 + flag layer |
 |---|---|---|---|
-| Symptom detection - precision | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Symptom detection - recall | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Presence (present/absent/uncertain) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Episode count (min & max) | 100% (8/8) | 100% (8/8) | 100% (8/8) |
-| Severity level | 100% (10/10) | 100% (10/10) | 100% (10/10) |
-| Date (occurred_date) | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Part of day | 100% (29/29) | 100% (29/29) | 100% (29/29) |
-| Medication intake (drug, status, date, inferred vs stated) - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Medication intake (drug, status, date, inferred vs stated) - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Review flags - precision | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Review flags - recall | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Report fully correct - hand-annotated tricky | 100% (2/2) | 100% (2/2) | 100% (2/2) |
-| Report fully correct - routine | 100% (5/5) | 100% (5/5) | 100% (5/5) |
-| Wrong & flagged (reports; goes to the review queue) | 0% (0/7) | 0% (0/7) | 0% (0/7) |
-| Wrong & unflagged (reports; reaches the chart unseen) - lower is better | 0% (0/7) | 0% (0/7) | 0% (0/7) |
-
-## Blind messy set
-
-88 reports (22 failure categories x 4), written by a different model than the parser's, labels drafted by AI and reviewed by the author before any parser ran (`data/blind_review.csv`). Nothing in the prompt or the rules was changed after seeing these results. Severity and medication rows are not labelled here; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date; flags are scored separately.
-
-| Metric | Rule baseline | LLM prompt v2 |
-|---|---|---|
-| Symptom rows - precision | 96% (75/78) | 97% (111/114) |
-| Symptom rows - recall | 60% (75/124) | 90% (111/124) |
-| Presence (present/absent/uncertain) | 88% (66/75) | 92% (102/111) |
-| Episode count (min & max, where labelled) | 76% (29/38) | 88% (46/52) |
-| Date (3 date categories only) | 43% (6/14) | 76% (13/17) |
-| Review flags - precision | 80% (4/5) | 92% (11/12) |
-| Review flags - recall | 7% (4/61) | 18% (11/61) |
-| Red flags - recall (reports labelled red_flag) | 22% (2/9) | 44% (4/9) |
-| Report fully correct (symptom rows) | 40% (35/88) | 69% (61/88) |
-| Wrong & flagged (reports) | 3% (3/88) | 3% (3/88) |
-| Wrong & unflagged (reports) - lower is better | 57% (50/88) | 27% (24/88) |
+| Symptom rows - precision | 96% (75/78) | 97% (111/114) | 97% (111/114) |
+| Symptom rows - recall | 60% (75/124) | 90% (111/124) | 90% (111/124) |
+| Presence (present/absent/uncertain) | 88% (66/75) | 92% (102/111) | 92% (102/111) |
+| Episode count (min & max, where labelled) | 76% (29/38) | 88% (46/52) | 88% (46/52) |
+| Date (3 date categories only) | 43% (6/14) | 76% (13/17) | 76% (13/17) |
+| Review flags - precision | 80% (4/5) | 92% (11/12) | 71% (42/59) |
+| Review flags - recall | 7% (4/61) | 18% (11/61) | 69% (42/61) |
+| Red flags - recall (reports labelled red_flag) | 22% (2/9) | 44% (4/9) | 100% (9/9) |
+| Report fully correct (symptom rows) | 40% (35/88) | 69% (61/88) | 69% (61/88) |
+| Wrong & flagged (reports) | 3% (3/88) | 3% (3/88) | 27% (24/88) |
+| Wrong & unflagged (reports) - lower is better | 57% (50/88) | 27% (24/88) | 3% (3/88) |
+| Flag rate (reports with any flag) | 6% (5/88) | 14% (12/88) | 77% (68/88) |
+| False-alarm rate (fully correct reports that are flagged) | 6% (2/35) | 15% (9/61) | 72% (44/61) |
+| False-alarm rate, reports with no labelled flag (correct, no flag expected, flagged anyway) | 0% (0/16) | 0% (0/25) | 48% (12/25) |
 
 ### By category (raw counts, 4 reports each)
 
-| Category | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged |
-|---|---|---|---|---|
-| typos_phonetic_spelling | 0/4 | 4 | 1/4 | 2 |
-| slang_abbreviations | 0/4 | 4 | 2/4 | 2 |
-| vague_hedged_counts | 0/4 | 4 | 2/4 | 2 |
-| hedged_presence | 0/4 | 4 | 2/4 | 2 |
-| relative_severity | 2/4 | 2 | 3/4 | 1 |
-| cycle_day_references | 1/4 | 3 | 2/4 | 2 |
-| multi_day_catch_up | 0/4 | 4 | 3/4 | 1 |
-| time_ambiguity | 1/4 | 3 | 2/4 | 2 |
-| unnamed_medication | 2/4 | 2 | 4/4 | 0 |
-| brand_names_misspellings | 3/4 | 1 | 3/4 | 0 |
-| second_hand_account | 1/4 | 3 | 1/4 | 3 |
-| negation_traps | 1/4 | 2 | 2/4 | 1 |
-| sarcasm_emotion | 4/4 | 0 | 4/4 | 0 |
-| pure_noise | 3/4 | 1 | 3/4 | 1 |
-| unit_format_traps | 3/4 | 1 | 3/4 | 1 |
-| out_of_schema_symptoms | 2/4 | 1 | 4/4 | 0 |
-| non_english_fragment | 1/4 | 3 | 2/4 | 2 |
-| overlong_rambling | 1/4 | 2 | 2/4 | 2 |
-| duplicates_copy_paste | 2/4 | 2 | 4/4 | 0 |
-| prompt_injection | 1/4 | 3 | 4/4 | 0 |
-| contact_details_in_text | 3/4 | 1 | 4/4 | 0 |
-| distress_not_symptom | 4/4 | 0 | 4/4 | 0 |
+| Category | Rule baseline: correct | Rule baseline: wrong & unflagged | LLM prompt v2: correct | LLM prompt v2: wrong & unflagged | LLM prompt v2 + flag layer: correct | LLM prompt v2 + flag layer: wrong & unflagged |
+|---|---|---|---|---|---|---|
+| typos_phonetic_spelling | 0/4 | 4 | 1/4 | 2 | 1/4 | 0 |
+| slang_abbreviations | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
+| vague_hedged_counts | 0/4 | 4 | 2/4 | 2 | 2/4 | 1 |
+| hedged_presence | 0/4 | 4 | 2/4 | 2 | 2/4 | 0 |
+| relative_severity | 2/4 | 2 | 3/4 | 1 | 3/4 | 1 |
+| cycle_day_references | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| multi_day_catch_up | 0/4 | 4 | 3/4 | 1 | 3/4 | 1 |
+| time_ambiguity | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| unnamed_medication | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
+| brand_names_misspellings | 3/4 | 1 | 3/4 | 0 | 3/4 | 0 |
+| second_hand_account | 1/4 | 3 | 1/4 | 3 | 1/4 | 0 |
+| negation_traps | 1/4 | 2 | 2/4 | 1 | 2/4 | 0 |
+| sarcasm_emotion | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
+| pure_noise | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
+| unit_format_traps | 3/4 | 1 | 3/4 | 1 | 3/4 | 0 |
+| out_of_schema_symptoms | 2/4 | 1 | 4/4 | 0 | 4/4 | 0 |
+| non_english_fragment | 1/4 | 3 | 2/4 | 2 | 2/4 | 0 |
+| overlong_rambling | 1/4 | 2 | 2/4 | 2 | 2/4 | 0 |
+| duplicates_copy_paste | 2/4 | 2 | 4/4 | 0 | 4/4 | 0 |
+| prompt_injection | 1/4 | 3 | 4/4 | 0 | 4/4 | 0 |
+| contact_details_in_text | 3/4 | 1 | 4/4 | 0 | 4/4 | 0 |
+| distress_not_symptom | 4/4 | 0 | 4/4 | 0 | 4/4 | 0 |
 
 ### Wrong & unflagged - Rule baseline (50 reports)
 
@@ -554,6 +572,27 @@ Reports where the parser produced no usable output (scored as all-missed): Rule 
 - `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`
 
 
+### Wrong & unflagged - LLM prompt v2 + flag layer (3 reports)
+
+**BL49** (vague_hedged_counts)  
+> threw up a couple times since last night 🤮🤮
+
+- `WRONG      vomiting: count expected 2-3 got 2-2  evidence='threw up a couple times since last night'`
+- `FLAG MISSED low_confidence`
+
+**BL53** (relative_severity)  
+> threw up once today, way less than yesterdays bad ahhh day 📉
+
+- `MISSED     vomiting present n=2-None`
+- `FLAG MISSED low_confidence`
+
+**BL57** (multi_day_catch_up)  
+> so sorry i forgot to log for a bit 😬 wed wasnt great threw up 3 times, thu just felt sick, but today im good
+
+- `MISSED     nausea present`
+- `WRONG      vomiting: date expected 2026-09-23 got 2026-09-21  evidence='threw up 3 times'`
+
+
 ### Wrong & flagged - Rule baseline (3 reports)
 
 - **BL23** (negation_traps; flags: red_flag): `WRONG      nausea: presence expected uncertain got absent  evidence='weird to say i havent been nauseous'`; `FLAG MISSED intra_report_conflict`; `FLAG MISSED low_confidence`
@@ -565,6 +604,33 @@ Reports where the parser produced no usable output (scored as all-missed): Rule 
 - **BL01** (typos_phonetic_spelling; flags: red_flag): `SPURIOUS   unable_to_keep_fluids present 2026-09-08 unknown  evidence='cant keep food down'`; `FLAG SPURIOUS red_flag`
 - **BL19** (brand_names_misspellings; flags: unmapped_medication): `MISSED     nausea uncertain`; `FLAG MISSED low_confidence`
 - **BL23** (negation_traps; flags: red_flag): `SPURIOUS   retching uncertain 2026-09-10 unknown n=None-None  evidence='my stomach isnt just revolting'`; `WRONG      nausea: presence expected uncertain got absent  evidence='i havent been nauseous'`; `FLAG MISSED intra_report_conflict`; `FLAG MISSED low_confidence`
+
+### Wrong & flagged - LLM prompt v2 + flag layer (24 reports)
+
+- **BL01** (typos_phonetic_spelling; flags: low_confidence, parser_disagreement, red_flag): `SPURIOUS   unable_to_keep_fluids present 2026-09-08 unknown  evidence='cant keep food down'`; `FLAG SPURIOUS low_confidence`; `FLAG SPURIOUS red_flag`
+- **BL02** (typos_phonetic_spelling; flags: low_confidence, parser_disagreement): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
+- **BL04** (slang_abbreviations; flags: parser_disagreement): `MISSED     vomiting uncertain`; `WRONG      appetite_loss: presence expected uncertain got present  evidence='lowkey starving'`; `FLAG MISSED low_confidence`
+- **BL07** (hedged_presence; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-2 got None-None  evidence='threw up once? or was it twicce'`
+- **BL12** (cycle_day_references; flags: low_confidence): `MISSED     vomiting absent n=0-0`
+- **BL15** (time_ambiguity; flags: low_confidence): `WRONG      vomiting: count expected 2-3 got 1-None, date expected 2026-09-21 got 2026-09-22  evidence='threw up at 3 5 and i think 7pm'`
+- **BL16** (time_ambiguity; flags: low_confidence): `MISSED     nausea present`; `WRONG      vomiting: date expected 2026-09-22 got 2026-09-23  evidence='threw up once'`
+- **BL19** (brand_names_misspellings; flags: unmapped_medication): `MISSED     nausea uncertain`; `FLAG MISSED low_confidence`
+- **BL21** (second_hand_account; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`; `WRONG      vomiting: presence expected present got uncertain  evidence='i had vomited on the pillow'`
+- **BL23** (negation_traps; flags: low_confidence, parser_disagreement, red_flag): `SPURIOUS   retching uncertain 2026-09-10 unknown n=None-None  evidence='my stomach isnt just revolting'`; `WRONG      nausea: presence expected uncertain got absent  evidence='i havent been nauseous'`; `FLAG MISSED intra_report_conflict`
+- **BL27** (pure_noise; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected uncertain got present  evidence='🤢'`; `WRONG      vomiting: presence expected uncertain got present  evidence='🤮'`
+- **BL30** (unit_format_traps; flags: parser_disagreement): `WRONG      vomiting: presence expected uncertain got present  evidence='up and down once after'`; `FLAG MISSED low_confidence`; `FLAG MISSED unmapped_medication`
+- **BL33** (non_english_fragment; flags: low_confidence, parser_disagreement): `MISSED     nausea uncertain`
+- **BL34** (non_english_fragment; flags: low_confidence, parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='mei you chi dongxi'`
+- **BL35** (overlong_rambling; flags: low_confidence, other_symptom): `MISSED     nausea present`; `FLAG SPURIOUS low_confidence`
+- **BL36** (overlong_rambling; flags: low_confidence, parser_disagreement): `MISSED     vomiting absent n=0-0`; `MISSED     appetite_loss present`; `FLAG SPURIOUS low_confidence`
+- **BL46** (typos_phonetic_spelling; flags: parser_disagreement): `SPURIOUS   appetite_loss absent 2026-09-11 unknown sev=0  evidence='ate a litle tost 👍'`
+- **BL48** (slang_abbreviations; flags: parser_disagreement): `WRONG      appetite_loss: presence expected uncertain got present  evidence='appetite meh'`; `FLAG MISSED low_confidence`
+- **BL50** (vague_hedged_counts; flags: low_confidence, parser_disagreement): `WRONG      retching: count expected 2-None got 2-4  evidence='dry heaved a few times'`
+- **BL52** (hedged_presence; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-1 got 1-None  evidence='might have thrown up a little in my mouth'`
+- **BL56** (cycle_day_references; flags: low_confidence, parser_disagreement): `WRONG      vomiting: date expected 2026-09-20 got 2026-09-21  evidence='threw up once on day 4'`; `FLAG SPURIOUS low_confidence`
+- **BL65** (second_hand_account; flags: low_confidence, parser_disagreement): `MISSED     nausea present`
+- **BL66** (second_hand_account; flags: low_confidence, parser_disagreement): `WRONG      vomiting: count expected 1-2 got 1-1  evidence='only once'`; `FLAG MISSED intra_report_conflict`
+- **BL67** (negation_traps; flags: low_confidence, parser_disagreement): `WRONG      nausea: presence expected present got uncertain  evidence='not NOT nauseous'`; `FLAG SPURIOUS low_confidence`
 
 ## Errors - Rule baseline (6 reports with at least one error)
 
