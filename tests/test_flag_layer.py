@@ -96,15 +96,25 @@ def test_prompt_injection(text):
     assert "prompt_injection" in flags(text, ev("vomiting"))
 
 
-def test_parser_disagreement_on_symptom_presence_and_count():
-    llm = rep(ev("nausea"), ev("vomiting", count=(3, 4)), ev("appetite_loss", "uncertain"))
-    rule = rep(ev("vomiting", count=(3, 3), method="rule"), ev("appetite_loss", method="rule"),
+def test_parser_disagreement_triggers_only_where_rules_are_reliable():
+    llm = rep(ev("nausea", "absent"), ev("vomiting", count=(5, 6)))
+    rule = rep(ev("nausea", method="rule"), ev("vomiting", count=(3, 3), method="rule"),
                ev("retching", method="rule"), method="rule")
     diff = parser_disagreement(llm, rule)
-    assert "nausea: LLM only" in diff and "retching: rules only" in diff
-    assert any(d.startswith("vomiting: count LLM 3-4 vs rules 3-3") for d in diff)
-    assert any(d.startswith("appetite_loss: presence LLM uncertain vs rules present") for d in diff)
+    assert "retching: rules only" in diff                                   # rules found it, LLM did not
+    assert "nausea: presence LLM absent vs rules present" in diff           # opposite presence
+    assert "vomiting: count LLM 5-6 vs rules 3-3" in diff                   # ranges do not overlap
     assert parser_disagreement(llm, llm.model_copy(update={"method": "rule"})) == []
+
+
+@pytest.mark.parametrize("llm_events, rule_events", [
+    ([ev("nausea")], []),                                                   # LLM-only symptom: rules missed it
+    ([ev("appetite_loss", "uncertain")], [ev("appetite_loss", method="rule")]),   # uncertain is not opposite
+    ([ev("vomiting", count=(3, 4))], [ev("vomiting", count=(3, 3), method="rule")]),   # overlapping ranges
+    ([ev("vomiting", count=(1, None))], [ev("vomiting", count=(4, 4), method="rule")]),  # "at least 1" covers 4
+])
+def test_parser_disagreement_does_not_trigger(llm_events, rule_events):
+    assert parser_disagreement(rep(*llm_events), rep(*rule_events, method="rule")) == []
 
 
 def test_questionnaire_rows_are_not_compared_with_the_rule_parser():
@@ -118,15 +128,15 @@ def test_questionnaire_rows_are_not_compared_with_the_rule_parser():
 def test_pipeline_writes_layer_flags_and_marks_report_for_review(con, tmp_path):
     text = "I'm scared. threw up like 3 times?? maybe 4"
     add_report(con, "T100", "P001", "2026-09-01T18:00:00", text)
-    ex, _ = make_extractor(tmp_path, {text: llm_json([sym("vomiting", "threw up like 3 times", count=(3, 4))])})
+    ex, _ = make_extractor(tmp_path, {text: llm_json([sym("vomiting", "threw up like 3 times", count=(5, 6))])})
     parse_with_llm(con, ex, ["T100"])
     got = dict(con.execute("SELECT flag_type, severity FROM review_flags WHERE report_id = 'T100'").fetchall())
     assert got["distress"] == "urgent" and got["low_confidence"] == "warning"
-    assert got["parser_disagreement"] == "warning"          # rules read 3-3, the LLM 3-4
+    assert got["parser_disagreement"] == "warning"          # rules read 3-3, the LLM 5-6: no overlap
     assert con.execute("SELECT parse_status FROM raw_reports WHERE report_id = 'T100'").fetchone()[0] == "needs_review"
     # the layer only adds flags: the stored row is the LLM's
     assert con.execute("SELECT episode_count_min, episode_count_max FROM symptom_events "
-                       "WHERE report_id = 'T100'").fetchall() == [(3, 4)]
+                       "WHERE report_id = 'T100'").fetchall() == [(5, 6)]
 
 
 def test_flag_layer_can_be_switched_off_for_evaluation(con, tmp_path):
@@ -170,7 +180,7 @@ def test_dashboard_shows_new_flag_types_and_treats_distress_as_red_flag(tmp_path
     for t, sev, desc in [("distress", "urgent", "Distress wording: 'scared'. Not a symptom; needs a person to reach out."),
                          ("other_symptom", "warning", "Complaint outside the symptom schema: fever ('fever')."),
                          ("prompt_injection", "warning", "Instruction-like text aimed at the parser: 'SYSTEM:'."),
-                         ("parser_disagreement", "warning", "Rule parser and LLM disagree: nausea: LLM only.")]:
+                         ("parser_disagreement", "warning", "Rule parser and LLM disagree: retching: rules only.")]:
         c.execute("INSERT INTO review_flags (patient_id, report_id, flag_type, severity, description, created_at) "
                   "VALUES ('P002', ?, ?, ?, ?, '2026-11-18T00:00:00')", (rid, t, sev, desc))
     c.commit()

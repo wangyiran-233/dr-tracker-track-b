@@ -81,12 +81,14 @@ as patient-stated when they were inferred, which led to the explicit *inferred v
 The prompt was deliberately not tuned on these results. The main lesson was that the flag layer, not
 extraction, is the weak point, so a **deterministic flag layer** (`cinv/flag_layer.py`) was added after the LLM:
 uncertain presence, hedging, empty / emoji-only / non-English text, second-hand accounts and uncertain dates →
-`low_confidence`; rules-vs-LLM disagreement → `parser_disagreement`; distress → `distress` (urgent, shown as a red
+`low_confidence`; rules-vs-LLM disagreement where the rules are reliable (rules-only symptom, present vs absent,
+non-overlapping counts; LLM-only symptoms do not count) → `parser_disagreement`; distress → `distress` (urgent, shown as a red
 flag); out-of-schema complaints → `other_symptom` (fever also `red_flag`); injection-like text →
 `prompt_injection`. It only adds flags and was rebuilt from the cache without API calls. On the 88 reports, wrong
-and unflagged falls from 24 to **3/88**, at a flag rate of 68/88 and a false-alarm rate of 44/61 correct reports.
-These rules were written after seeing the 88 results, so this set is **now a development set, not a blind test**,
-and the numbers are in-sample. Details in [`eval/results.md`](../eval/results.md).
+and unflagged falls from 24 to **7/88**, at a flag rate of 61/88 and a false-alarm rate of 41/61 correct reports;
+on the 184-report main dataset the flag rate goes from 27 to 31 reports. These rules were written after seeing the
+88 results, so this set is **now a development set, not a blind test**, and the numbers are in-sample. The rules
+are frozen as the final version. Details in [`eval/results.md`](../eval/results.md).
 
 **Why "wrong and unflagged" matters more than "wrong and flagged".** A flagged error goes to the review queue. A
 nurse sees the patient's words next to the parsed value, so the cost is a minute of review time. An unflagged

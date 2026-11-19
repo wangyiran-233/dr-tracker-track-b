@@ -524,6 +524,24 @@ def table(results: dict[str, dict], subset: str, rows=None) -> str:
     return head + "\n".join(lines)
 
 
+def main_flag_rate(rows: list[dict], ctx: Context, parsers: dict[str, tuple]) -> list[str]:
+    """Flag rate on the whole (unlabelled) dataset: any flag, and warning / urgent only."""
+    t: dict[str, Tally] = {}
+    for name, (tp, ex) in parsers.items():
+        parsed, cross = run(rows, ctx, tp, fallback=ex is None, flag_layer=name.endswith(LAYER_SUFFIX))
+        any_f = {rid for rid, rep in parsed.items() if rep.flags} | {f.report_id for f in cross}
+        strong = ({rid for rid, rep in parsed.items() if any(f.severity != "info" for f in rep.flags)}
+                  | {f.report_id for f in cross if f.severity != "info"})
+        t[name] = Tally()
+        for rid in parsed:
+            t[name].add("any", rid in any_f)
+            t[name].add("strong", rid in strong)
+    return ["| Metric | " + " | ".join(t) + " |", "|---|" + "---|" * len(t),
+            "| Flag rate (reports with any flag) | " + " | ".join(fmt(x.get("any")) for x in t.values()) + " |",
+            "| Flag rate, warning or urgent (report set to needs_review) | "
+            + " | ".join(fmt(x.get("strong")) for x in t.values()) + " |"]
+
+
 def f1(t: Tally) -> str:
     p_ok, p_n = t.get("symptom_precision")
     r_ok, r_n = t.get("symptom_recall")
@@ -549,6 +567,7 @@ def main() -> None:
     con = sqlite3.connect(args.db)
     ctx = Context.from_db(con)
     rows = load_rows(con, [g["report_id"] for g in gold])
+    all_rows = load_rows(con)
     con.close()
 
     parsers: dict[str, tuple] = {"Rule baseline": (parse_free_text_rule, None)}
@@ -617,6 +636,12 @@ def main() -> None:
           "Flag rate = reports with at least one flag of any type (including info). False-alarm rate = fully "
           "correct reports that are flagged anyway. Routine = generator-labelled, tricky = hand-annotated.", "",
           table(results, "all", FLAG_ROWS), "",
+          f"## Flag rate - main dataset (all {len(all_rows)} reports; nurse workload)", "",
+          "Every report in the synthetic dataset, parsed in submission order with cross-report checks "
+          "(duplicates, conflicts, corrections). Not labelled, so only the share of reports a nurse has to "
+          "open is shown. Older prompt versions are left out.", "",
+          *main_flag_rate(all_rows, ctx, {m: p for m, p in parsers.items()
+                                          if m == "Rule baseline" or latest in m}), "",
           "## Blind messy set (now a development set)", ""]
     md += (run_blind(ctx, args.offline, args.no_llm, args.out) if not args.no_blind
            else ["Not run (--no-blind)."]) + [""]

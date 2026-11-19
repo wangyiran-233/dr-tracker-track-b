@@ -10,7 +10,10 @@ so that set is now a development set for this layer, not a blind test.
 Flags raised (one flag per type per report; the reasons are listed in the description):
   low_confidence       uncertain presence, hedging, empty / emoji-only / non-English text,
                        second-hand account, uncertain date
-  parser_disagreement  rule parser and LLM disagree on symptoms, presence or counts
+  parser_disagreement  rules found a symptom the LLM did not, opposite presence (present vs absent),
+                       or non-overlapping counts (LLM-only symptoms do not count)
+
+Final version: the rules are frozen; changing them needs a fresh blind set to measure.
   distress             emotional-distress wording -> urgent, handled like a red flag
   other_symptom        complaint outside the 5 schema symptoms (fever also raises red_flag)
   prompt_injection     instruction-like or JSON-like text aimed at the parser
@@ -84,21 +87,33 @@ def _summary(events) -> dict[str, tuple[frozenset, frozenset]]:
     return {k: (frozenset(p), frozenset(c)) for k, (p, c) in out.items()}
 
 
+def _overlap(r: tuple, s: tuple) -> bool:
+    """Do two count ranges overlap? A NULL bound means 'unknown' (min) / 'no upper bound' (max)."""
+    lo1, hi1 = r[0] or 0, float("inf") if r[1] is None else r[1]
+    lo2, hi2 = s[0] or 0, float("inf") if s[1] is None else s[1]
+    return lo1 <= hi2 and lo2 <= hi1
+
+
 def parser_disagreement(llm_rep: ParsedReport, rule_rep: ParsedReport) -> list[str]:
-    """Differences between the LLM's free-text rows and the keyword rules' rows."""
+    """Disagreements between the LLM's free-text rows and the keyword rules' rows, limited to the cases
+    where the rules are usually right (high precision, low recall):
+      * the rules found a symptom the LLM did not;
+      * opposite presence for the same symptom (present vs absent; 'uncertain' is not opposite);
+      * count ranges that do not overlap at all.
+    A symptom found only by the LLM does not count: most often the rules simply missed it."""
     a = _summary(e for e in llm_rep.symptom_events if e.extraction_method == "llm")
     b = _summary(rule_rep.symptom_events)
+    fmt = lambda s: "/".join(f"{lo}-{hi}" for lo, hi in sorted(s, key=str))   # noqa: E731
     out = []
-    for code in sorted(set(a) | set(b)):
-        if code not in b:
-            out.append(f"{code}: LLM only")
-        elif code not in a:
+    for code in sorted(b):
+        if code not in a:
             out.append(f"{code}: rules only")
-        elif a[code][0] != b[code][0]:
-            out.append(f"{code}: presence LLM {'/'.join(sorted(a[code][0]))} vs rules {'/'.join(sorted(b[code][0]))}")
-        elif a[code][1] != b[code][1]:
-            fmt = lambda s: "/".join(f"{lo}-{hi}" for lo, hi in sorted(s, key=str))   # noqa: E731
-            out.append(f"{code}: count LLM {fmt(a[code][1])} vs rules {fmt(b[code][1])}")
+            continue
+        (pa, ca), (pb, cb) = a[code], b[code]
+        if ("present" in pa and "absent" in pb) or ("absent" in pa and "present" in pb):
+            out.append(f"{code}: presence LLM {'/'.join(sorted(pa))} vs rules {'/'.join(sorted(pb))}")
+        elif ca and cb and not any(_overlap(x, y) for x in ca for y in cb):
+            out.append(f"{code}: count LLM {fmt(ca)} vs rules {fmt(cb)}")
     return out
 
 
