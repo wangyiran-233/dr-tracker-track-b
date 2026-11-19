@@ -25,7 +25,9 @@ whether a medication change helped.
 
 ## 2. Data design
 
-### Core principles
+### Schema
+
+**Core principles**
 
 - **The patient's words are never changed.** `raw_reports` is immutable (database triggers block edits; only
   `parse_status` can change). Parsers can be re-run and audited at any time.
@@ -41,7 +43,7 @@ whether a medication change helped.
 - **One time anchor.** `chemo_administrations` gives every symptom a cycle day and a phase (acute = day 1,
   delayed = days 2–5).
 
-### Main tables (`sql/schema.sql`)
+**Main tables** (`sql/schema.sql`)
 
 | Table | Purpose |
 |---|---|
@@ -52,6 +54,64 @@ whether a medication change helped.
 | `symptom_events`, `medication_intake_events`, `weight_measurements` | The structured events, each with its `evidence_span` |
 | `review_flags`, `flag_events` | Open issues for a nurse (conflict, red flag, low confidence, …) and their history |
 | Views `v_daily_symptom_summary`, `v_daily_medication_intake`, `v_weight_trend` | One documented chart rule applied everywhere (active events only; conflicting counts → the larger value, day marked) |
+
+### Parser
+
+Three parsers write to the same tables; every run is recorded in `extraction_runs`.
+
+- **Questionnaire rules.** Questionnaires are parsed fully deterministically.
+- **Keyword-rule baseline.** The baseline for evaluation, and the per-report fallback when the LLM output fails
+  validation.
+- **LLM (prompt v2) + deterministic flag layer.** The **LLM understands the language**; **code does everything
+  checkable**.
+  - LLM (Groq `openai/gpt-oss-120b`, JSON mode, temperature 0): which symptoms, present / absent / uncertain,
+    counts, severity words, time words, medication *mentions*, "is this a correction?".
+  - Code: dates (the LLM returns only a relative day offset), mapping drug mentions to the dictionary, the verbatim
+    evidence check, the plausibility guard, and **every review flag**.
+  - The flag layer (`cinv/flag_layer.py`) runs after the LLM. It never edits the LLM's rows, it only adds flags:
+    - `low_confidence`: presence `uncertain`; hedging (maybe, idk, i think, not sure, ??, "like N"); empty,
+      emoji-only or non-English text; second-hand accounts (says, told me, husband / mom …); uncertain dates
+      (day N, the other day, "or was that yesterday").
+    - `parser_disagreement`: the keyword-rule parser and the LLM disagree on symptoms, presence or counts (any
+      difference, including a symptom found only by the LLM).
+    - `distress` (scared, can't do this, give up, 😭 …): urgent, shown as a red flag.
+    - `other_symptom`: complaints outside the schema (fever, diarrhea, constipation, hair loss, fatigue, pain);
+      fever also raises a `red_flag`.
+    - `prompt_injection`: "ignore previous instructions", "SYSTEM:", "admin mode", JSON-like text.
+  - The rules are frozen (git tag `flag-layer-final`). On the everyday main dataset the layer raises the flag rate
+    from 15% to **17% (27 → 32 of 184 reports)**.
+
+### Synthetic dataset
+
+Built from the provided CINV case by `scripts/generate_data.py` (fixed seed, fully reproducible):
+
+- **5 fictional head-and-neck cancer patients × 6 weeks**: 12 infusions, 10 medication orders, **184 reports**
+  (129 free text, 55 questionnaires).
+- A hidden "truth" curve per patient and day follows the commonly described CINV pattern (peak around days 2–3
+  after infusion, scaled by the regimen's emetogenic risk). Routine reports are rendered from that truth by
+  templates.
+- **15 hand-written tricky cases (18 reports)** cover vague counts, conflicts, corrections, a vomited-up dose,
+  questionnaire vs. comment disagreement, and more.
+
+### Gold set and blind sets
+
+| Set | Reports | Role |
+|---|---|---|
+| Gold set (`data/gold_set.json`) | 30 | Development: used to tune the prompt (v1 → v2) |
+| Messy set (`data/messy_blind_set.json`) | 88 | Development: used to design the flag layer |
+| Blind set 2 (`data/blind_set2.json`) | 50 | **Final test**: nothing was changed after seeing its results |
+
+- **Gold set.** 12 routine reports labelled straight from the generator, plus the 18 tricky reports, whose labels
+  AI drafted and the author reviewed one by one (`data/gold_review.csv`).
+- **Messy set.** 22 failure categories × 4 (typos, slang, hedging, second-hand accounts, emoji, non-English,
+  distress, prompt injection, …), written by a different model than the parser's; labels reviewed by the author
+  before any parser ran (`data/blind_review.csv`). The flag layer was designed on it, so its flag-layer numbers are
+  in-sample.
+- **Blind set 2.** Written after the flag rules were frozen: **35 edge cases** across the same 22 categories and
+  **15 routine reports** to measure false alarms. Text by a **different model** (Groq `qwen/qwen3.8-27b`,
+  `scripts/generate_blind_set2.py`) with new personas and scenarios, so the parser's model never writes its own test
+  set; every report was checked for similarity against the development reports (difflib ratio ≤ 0.6). Labels
+  reviewed by the author before any parser ran (`data/blind2_review.csv`).
 
 ---
 
@@ -91,65 +151,34 @@ reports, the review queue, evaluation results and the method.
 
 ## 4. AI usage and human-in-the-loop decisions
 
-### Schema design
+### Where AI was used and how it was checked
 
-Claude drafted the schema; the author decided the open design questions (symptom scope, conflict rule,
-medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and reviewed edge cases.
+| Where | AI role | How it was checked |
+|---|---|---|
+| Schema | Claude drafted the tables | Author decided the open questions (symptom scope, conflict rule, medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and reviewed edge cases |
+| Free-text parsing | LLM (`openai/gpt-oss-120b`, prompt v2) extracts symptoms, counts, time words, drug mentions | Pydantic schema with retry; verbatim `evidence_span` check; dates and drug mapping in code; flag layer; comparison with the rule parser |
+| Synthetic data | Claude wrote `scripts/generate_data.py` | Fixed seed; routine labels come from the hidden truth, not from a model |
+| Test text | Qwen (`qwen/qwen3.8-27b`) wrote the messy set and blind set 2 | Different model from the parser's; similarity check against the development reports |
+| Labels | Claude drafted labels for tricky and blind reports | Author reviewed every label before any parser ran: gold set 16 agreed / 2 revised, blind set 2 47 agreed / 3 revised |
+| Code and dashboard | Claude wrote most of the code | Offline pytest suite; "Schema valid · Evidence verified" badge in the Inspector |
 
-### Parser
+### Key judgments made by the author
 
-- **LLM** (Groq `openai/gpt-oss-120b`, JSON mode, temperature 0, prompt v2) **understands the language**: which
-  symptoms, present / absent / uncertain, counts, severity words, time words, medication *mentions*, "is this a
-  correction?".
-- **Code does everything checkable**: dates (the LLM returns only a relative day offset), mapping drug mentions to
-  the dictionary, the verbatim evidence check, the plausibility guard, and **every review flag**.
-- **Deterministic flag layer** (`cinv/flag_layer.py`) runs after the LLM, prompt unchanged. It never edits the LLM's
-  rows, it only adds flags:
-  - `low_confidence`: presence `uncertain`; hedging (maybe, idk, i think, not sure, ??, "like N"); empty,
-    emoji-only or non-English text; second-hand accounts (says, told me, husband / mom …); uncertain dates
-    (day N, the other day, "or was that yesterday").
-  - `parser_disagreement`: the keyword-rule parser and the LLM disagree on symptoms, presence or counts
-    (any difference, including a symptom found only by the LLM).
-  - `distress` (scared, can't do this, give up, 😭 …): urgent, shown as a red flag.
-  - `other_symptom`: complaints outside the schema (fever, diarrhea, constipation, hair loss, fatigue, pain);
-    fever also raises a `red_flag`.
-  - `prompt_injection`: "ignore previous instructions", "SYSTEM:", "admin mode", JSON-like text.
-- **The rules are frozen** (git tag `flag-layer-final`); any change needs a fresh blind set to measure it.
-- **Cost of the flag layer** (measured, see below): flag rate **60% (30/50)** on blind set 2, which is mostly messy
-  text; **17% (32/184)** on the everyday main dataset, up from 15% (27 → 32 reports) without the layer; on routine
-  reports in blind set 2, only **1 of 13** correct reports is flagged by mistake.
-- Questionnaires are parsed fully deterministically. A keyword-rule parser is both the baseline and the per-report
-  fallback.
-
-### Synthetic dataset
-
-- `scripts/generate_data.py` (written with Claude, fixed seed) builds **5 fictional head-and-neck cancer patients × 6
-  weeks**: 12 infusions, 10 medication orders, **184 reports** (129 free text, 55 questionnaires).
-- A hidden "truth" curve per patient and day follows the commonly described CINV pattern (peak around days 2–3
-  after infusion, scaled by the regimen's emetogenic risk). Routine reports are rendered from that truth by
-  templates.
-- **15 hand-written tricky cases (18 reports)** cover vague counts, conflicts, corrections, a vomited-up dose,
-  questionnaire vs. comment disagreement, and more.
-
-### Gold set (30 reports): development set
-
-- **Used to tune the prompt** (v1 → v2 changes target errors seen here), so it is a development set, not a test.
-- 12 routine reports: labels come straight from the generator.
-- 18 tricky reports: **AI drafted the labels, the author reviewed each one**: **16 agreed, 2 revised**
-  (`data/gold_review.csv`). Both revisions were questionnaire PRN drugs labelled as patient-stated when they were
-  inferred, which led to an explicit *inferred vs. stated* field.
-
-### Blind set 2 (50 reports): the test
-
-- The flag rules were designed on an earlier 88-report development set and frozen (git tag `flag-layer-final`)
-  before blind set 2 was written.
-- **35 edge cases** covering 22 failure categories (typos, slang, hedging, second-hand accounts, emoji,
-  non-English, distress, prompt injection, …) and **15 routine reports** to measure false alarms.
-- Text written by a **different model** (Groq `qwen/qwen3.8-27b`, `scripts/generate_blind_set2.py`) with new personas and
-  scenarios, so the parser's model never writes its own test set; every report was checked for similarity against
-  the development reports (difflib ratio ≤ 0.6).
-- Label drafts by Claude; **the author reviewed all 50 before any parser ran: 47 agreed, 3 revised**
-  (`data/blind2_review.csv`). Nothing (prompt, parsers, flag rules) was changed after seeing the results.
+- **Inferred vs. stated.** Both gold-set revisions were questionnaire PRN drugs labelled as patient-stated when they
+  were inferred, which led to an explicit *inferred vs. stated* field.
+- **Misspelled drug names are not auto-matched.** "zofram", "compazene" → flagged `unmapped_medication`, never
+  fuzzy-matched to a drug.
+- **Implied symptoms are `uncertain`, not `present`.** "zofram helped a bit" → nausea uncertain; "can't keep food
+  down" → vomiting uncertain, no count.
+- **Self-contradicting reports get `intra_report_conflict`**, not a severity mismatch.
+- **Out-of-schema complaints must not disappear silently** (hair loss, fatigue) → flagged for review.
+- **A duplicate is flagged only when the earlier report exists**; otherwise the flag is dropped.
+- **Distress messages** ("I can't do this anymore") are out of the parser's scope but must go to human review at
+  high priority, never vanish because they contain no symptom.
+- **Safer over quieter.** A narrower `parser_disagreement` rule was tried on the messy set and rejected: it let 4
+  more errors through unflagged to save 3 false alarms.
+- **Freeze before testing.** Prompt, parsers and flag rules were frozen before blind set 2 was written; nothing was
+  changed after seeing its results.
 
 ### Evaluation results on blind set 2
 
@@ -173,19 +202,9 @@ samples, no significance claimed.
 
 **Why "wrong & unflagged" is the main safety metric:** a flagged error goes to a nurse with the patient's words
 next to it; an unflagged error looks exactly like a correct value on the chart. Without the layer, all 14 of the
-LLM's wrong reports were unflagged; with it, 10 of them are flagged and 4 still reach the chart unseen.
-
-### Key judgments made by the author
-
-- **Misspelled drug names are not auto-matched.** "zofram", "compazene" → flagged `unmapped_medication`, never
-  fuzzy-matched to a drug.
-- **Implied symptoms are `uncertain`, not `present`.** "zofram helped a bit" → nausea uncertain; "can't keep food
-  down" → vomiting uncertain, no count.
-- **Self-contradicting reports get `intra_report_conflict`**, not a severity mismatch.
-- **Out-of-schema complaints must not disappear silently** (hair loss, fatigue) → flagged for review.
-- **A duplicate is flagged only when the earlier report exists**; otherwise the flag is dropped.
-- **Distress messages** ("I can't do this anymore") are out of the parser's scope but must go to human review at
-  high priority, never vanish because they contain no symptom.
+LLM's wrong reports were unflagged; with it, 10 of them are flagged and 4 still reach the chart unseen (B2_06,
+B2_23, B2_26, B2_45; see Next steps). The 60% flag rate is the cost: blind set 2 is mostly messy text, and on its
+routine reports only 1 of 13 correct reports is flagged by mistake.
 
 ---
 
