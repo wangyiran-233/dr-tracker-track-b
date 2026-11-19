@@ -7,8 +7,8 @@ bias. Everything is synthetic. The parser is never imported or called here.
 Output: data/messy_blind_set.json (report text + metadata only; no labels).
 Labels are drafted separately and exported to data/blind_review.csv for human review.
 
-    python generate_blind_set.py            # batch 1: writes BL01-BL44 to data/messy_blind_set.json
-    python generate_blind_set.py --batch 2  # batch 2: appends BL45-BL88 (more emoji / empty / emoji-only)
+    python scripts/generate_blind_set.py            # batch 1: writes BL01-BL44 to data/messy_blind_set.json
+    python scripts/generate_blind_set.py --batch 2  # batch 2: appends BL45-BL88 (more emoji / empty / emoji-only)
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from groq import Groq
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "messy_blind_set.json"
 GEN_MODEL = "qwen/qwen3.8-27b"
 assert "gpt-oss" not in GEN_MODEL  # parser model must never generate its own test set

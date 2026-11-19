@@ -863,7 +863,7 @@ def _method_tab() -> None:
 def _eval_tab() -> None:
     blind = _blind2_section(_md_sections(data.EVAL_DIR / "results.md"))
     if not blind:
-        st.caption("eval/results.md not found — run evaluate.py --offline.")
+        st.caption("eval/results.md not found — run scripts/evaluate.py --offline.")
         return
     st.subheader("Blind set 2 — fresh blind test (50 reports: 35 edge cases, 15 routine)")
     summary, _, rest = blind.partition("### ")
@@ -1041,7 +1041,7 @@ def _cell(text: str) -> tuple[int, int, str] | None:
 
 def _row(section: str, metric: str) -> tuple | None:
     """(rule, LLM v2, LLM v2 + flag layer) cells of one results.md table row: first value column and
-    the last two (evaluate.py always puts the flag-layer column last, right after v2)."""
+    the last two (scripts/evaluate.py always puts the flag-layer column last, right after v2)."""
     for line in section.splitlines():
         if line.startswith(f"| {metric}"):
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -1094,7 +1094,7 @@ def benchmark_table() -> None:
                     f"<td>{esc(impact.format(rn=rn, vn=vn, ln=ln, d=dl, rm=d - rn, vm=dv - vn, lm=dl - ln))}</td></tr>")
     with st.container(key="card_bench"):
         if not rows:
-            st.caption("eval/results.md not found — run evaluate.py --offline.")
+            st.caption("eval/results.md not found — run scripts/evaluate.py --offline.")
             return
         head = blind_headline()
         st.html(

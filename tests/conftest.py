@@ -14,7 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-import init_db  # noqa: E402
+from scripts import init_db  # noqa: E402
 from cinv.common import Context  # noqa: E402
 from cinv.llm import GroqExtractor, parse_free_text_llm  # noqa: E402
 from cinv.pipeline import load_rows, run, write_results  # noqa: E402

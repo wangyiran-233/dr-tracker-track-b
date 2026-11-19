@@ -2,13 +2,13 @@
 
 Raw counts are shown next to every percentage. Samples are small (one report moves a metric by several points), so no statistical significance is claimed.
 
-LLM model: openai/gpt-oss-120b, prompt v2 (frozen). Flag layer: `cinv/flag_layer.py`, frozen at git tag `flag-layer-final` before blind set 2 was written. All LLM output is read from `data/llm_cache.json`, so `python evaluate.py --offline` reproduces this file without an API key.
+LLM model: openai/gpt-oss-120b, prompt v2 (frozen). Flag layer: `cinv/flag_layer.py`, frozen at git tag `flag-layer-final` before blind set 2 was written. All LLM output is read from `data/llm_cache.json`, so `python scripts/evaluate.py --offline` reproduces this file without an API key.
 
 Contents: blind set 2 (the test result) and the main-dataset flag rate first; the two development sets (gold set, messy set) at the end.
 
 ## Blind set 2 - fresh blind test (50 reports)
 
-50 new reports written for this test after the flag layer was frozen (git tag `flag-layer-final`): **35 edge cases** covering all 22 failure categories of the development messy set, with new personas and scenarios, and **15 routine reports** to measure false alarms. Text by Groq `qwen/qwen3.8-27b` (`generate_blind_set2.py`), a different model than the parser's; every report was checked against the development messy set for similarity (difflib ratio <= 0.6). Labels were drafted by AI and reviewed by the author before any parser ran (`data/blind2_review.csv`: 47 agreed, 3 revised). Prompt v2, the parsers and the flag rules were not changed after seeing these results, so every column is a blind number.
+50 new reports written for this test after the flag layer was frozen (git tag `flag-layer-final`): **35 edge cases** covering all 22 failure categories of the development messy set, with new personas and scenarios, and **15 routine reports** to measure false alarms. Text by Groq `qwen/qwen3.8-27b` (`scripts/generate_blind_set2.py`), a different model than the parser's; every report was checked against the development messy set for similarity (difflib ratio <= 0.6). Labels were drafted by AI and reviewed by the author before any parser ran (`data/blind2_review.csv`: 47 agreed, 3 revised). Prompt v2, the parsers and the flag rules were not changed after seeing these results, so every column is a blind number.
 
 Severity and medication rows are not labelled; dates are scored only for the 3 date categories (multi_day_catch_up, cycle_day_references, time_ambiguity). Each report is parsed on its own (no previous report, no medication orders). "Wrong" = at least one symptom row missed, spurious or with a wrong presence / count / date. Review-flag precision and recall cover every labelled flag type, including `other_symptom` and `prompt_injection`, with the same rule in all three columns; `distress` counts as `red_flag`; `parser_disagreement` is never labelled, so it is left out of precision and recall (it still counts towards flag rate and wrong & unflagged).
 

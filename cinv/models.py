@@ -1,6 +1,6 @@
 """Shared Pydantic models: the single output contract for every parser
 (questionnaire rules, keyword baseline, Groq LLM). Field names mirror
-schema.sql so writing to SQLite is a straight mapping."""
+sql/schema.sql so writing to SQLite is a straight mapping."""
 
 from __future__ import annotations
 

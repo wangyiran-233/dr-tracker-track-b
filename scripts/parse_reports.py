@@ -1,8 +1,8 @@
 """Parse all raw reports into the structured tables and fill review_flags.
 
 Usage:
-    .venv\\Scripts\\python.exe parse_reports.py --text-parser llm     # Groq (needs GROQ_API_KEY in .env)
-    .venv\\Scripts\\python.exe parse_reports.py --text-parser rule    # keyword baseline, no API
+    .venv\\Scripts\\python.exe scripts\\parse_reports.py --text-parser llm     # Groq (needs GROQ_API_KEY in .env)
+    .venv\\Scripts\\python.exe scripts\\parse_reports.py --text-parser rule    # keyword baseline, no API
 
 Re-runnable: derived tables are cleared and rebuilt each time; raw_reports
 are never modified (except parse_status). LLM responses are cached in
@@ -17,12 +17,14 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, so `cinv` imports
+
 from cinv.common import Context
 from cinv.llm import FatalLLMError, GroqExtractor, parse_free_text_llm
 from cinv.pipeline import load_rows, run, write_results
 from cinv.rules import parse_free_text_rule
 
-DB = Path(__file__).resolve().parent / "data" / "cinv.db"
+DB = Path(__file__).resolve().parent.parent / "data" / "cinv.db"
 
 
 def main() -> None:

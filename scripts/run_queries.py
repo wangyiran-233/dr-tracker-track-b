@@ -1,8 +1,8 @@
-"""Run the named queries in queries.sql and print the results.
+"""Run the named queries in sql/queries.sql and print the results.
 
 Usage:
-    .venv\\Scripts\\python.exe run_queries.py                       # all queries
-    .venv\\Scripts\\python.exe run_queries.py --name review_queue
+    .venv\\Scripts\\python.exe scripts\\run_queries.py                       # all queries
+    .venv\\Scripts\\python.exe scripts\\run_queries.py --name review_queue
 """
 
 from __future__ import annotations
@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
-def load_queries(path: Path = ROOT / "queries.sql") -> dict[str, str]:
+def load_queries(path: Path = ROOT / "sql" / "queries.sql") -> dict[str, str]:
     text = path.read_text(encoding="utf-8")
     blocks = re.split(r"^-- name:\s*(\S+)\s*$", text, flags=re.M)
     return {blocks[i]: blocks[i + 1].strip() for i in range(1, len(blocks), 2)}

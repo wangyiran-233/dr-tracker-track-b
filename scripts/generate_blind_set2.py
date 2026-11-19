@@ -11,8 +11,8 @@ blind set 1 report. The parser and the flag layer are never imported or called h
 Output: data/blind_set2.json (text + metadata only). Labels: data/blind2_review.csv, drafted separately
 and reviewed by the author in data/blind2_review.xlsx BEFORE any parser runs on these reports.
 
-    python generate_blind_set2.py
-    python generate_blind_set2.py --redo B2_10 B2_18   # regenerate only these reports (same timestamp)
+    python scripts/generate_blind_set2.py
+    python scripts/generate_blind_set2.py --redo B2_10 B2_18   # regenerate only these reports (same timestamp)
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from groq import Groq, RateLimitError
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "blind_set2.json"
 SET1 = ROOT / "data" / "messy_blind_set.json"
 GEN_MODEL = "qwen/qwen3.8-27b"

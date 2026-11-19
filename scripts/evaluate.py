@@ -2,8 +2,8 @@
 development sets (gold set, messy set).
 
 Usage:
-    .venv\\Scripts\\python.exe evaluate.py --offline  # rule + every LLM prompt version, cache only
-    .venv\\Scripts\\python.exe evaluate.py --no-llm   # baseline only
+    .venv\\Scripts\\python.exe scripts\\evaluate.py --offline  # rule + every LLM prompt version, cache only
+    .venv\\Scripts\\python.exe scripts\\evaluate.py --no-llm   # baseline only
 
 Writes eval/results.md (blind set 2: rule baseline vs the current prompt with and without the flag
 layer; main-dataset flag rate; development sets: gold set with every prompt version, messy set; plus
@@ -39,9 +39,12 @@ import argparse
 import csv
 import json
 import sqlite3
+import sys
 from collections import defaultdict
 from itertools import permutations
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root, so `cinv` imports
 
 from cinv.common import Context
 from cinv.llm import (CONTEXT_WINDOW_HOURS, PROMPT_VERSION, PROMPTS, FatalLLMError, GroqExtractor,
@@ -50,7 +53,7 @@ from cinv.models import COUNTED, INFERRED_PRN_TEXT, ParsedReport
 from cinv.pipeline import load_rows, run
 from cinv.rules import parse_free_text_rule
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 EVAL_FLAG_TYPES = {"intra_report_conflict", "cross_report_conflict", "severity_mismatch",
                    "unmapped_medication", "implausible_value", "duplicate_report", "red_flag"}
 SEVERITY_SYMPTOMS = {"nausea", "appetite_loss"}
@@ -428,7 +431,7 @@ def _raw(c: tuple[int, int]) -> str:
 BLIND2_INTRO = [
     "50 new reports written for this test after the flag layer was frozen (git tag `flag-layer-final`): **35 edge "
     "cases** covering all 22 failure categories of the development messy set, with new personas and scenarios, and "
-    "**15 routine reports** to measure false alarms. Text by Groq `qwen/qwen3.8-27b` (`generate_blind_set2.py`), a "
+    "**15 routine reports** to measure false alarms. Text by Groq `qwen/qwen3.8-27b` (`scripts/generate_blind_set2.py`), a "
     "different model than the parser's; every report was checked against the development messy set for similarity "
     "(difflib ratio <= 0.6). Labels were drafted by AI and reviewed by the author before any parser ran "
     "(`data/blind2_review.csv`: 47 agreed, 3 revised). Prompt v2, the parsers and the flag rules were not changed "
@@ -680,7 +683,7 @@ def main() -> None:
           "several points), so no statistical significance is claimed.", "",
           f"LLM model: {model}, prompt {latest} (frozen). Flag layer: `cinv/flag_layer.py`, frozen at git tag "
           "`flag-layer-final` before blind set 2 was written. All LLM output is read from `data/llm_cache.json`, "
-          "so `python evaluate.py --offline` reproduces this file without an API key.", "",
+          "so `python scripts/evaluate.py --offline` reproduces this file without an API key.", "",
           "Contents: blind set 2 (the test result) and the main-dataset flag rate first; the two development sets "
           "(gold set, messy set) at the end.", "",
           "## Blind set 2 - fresh blind test (50 reports)", ""]

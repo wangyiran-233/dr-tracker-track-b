@@ -41,7 +41,7 @@ whether a medication change helped.
 - **One time anchor.** `chemo_administrations` gives every symptom a cycle day and a phase (acute = day 1,
   delayed = days 2–5).
 
-### Main tables (`schema.sql`)
+### Main tables (`sql/schema.sql`)
 
 | Table | Purpose |
 |---|---|
@@ -123,7 +123,7 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
 
 ### Synthetic dataset
 
-- `generate_data.py` (written with Claude, fixed seed) builds **5 fictional head-and-neck cancer patients × 6
+- `scripts/generate_data.py` (written with Claude, fixed seed) builds **5 fictional head-and-neck cancer patients × 6
   weeks**: 12 infusions, 10 medication orders, **184 reports** (129 free text, 55 questionnaires).
 - A hidden "truth" curve per patient and day follows the commonly described CINV pattern (peak around days 2–3
   after infusion, scaled by the regimen's emetogenic risk). Routine reports are rendered from that truth by
@@ -145,7 +145,7 @@ medication-intake and chemo-anchor tables, keeping raw 0–10 scores) and review
   before blind set 2 was written.
 - **35 edge cases** covering 22 failure categories (typos, slang, hedging, second-hand accounts, emoji,
   non-English, distress, prompt injection, …) and **15 routine reports** to measure false alarms.
-- Text written by a **different model** (Groq `qwen/qwen3.8-27b`, `generate_blind_set2.py`) with new personas and
+- Text written by a **different model** (Groq `qwen/qwen3.8-27b`, `scripts/generate_blind_set2.py`) with new personas and
   scenarios, so the parser's model never writes its own test set; every report was checked for similarity against
   the development reports (difflib ratio ≤ 0.6).
 - Label drafts by Claude; **the author reviewed all 50 before any parser ran: 47 agreed, 3 revised**
@@ -240,7 +240,24 @@ LLM's wrong reports were unflagged; with it, 10 of them are flagged and 4 still 
 
 ---
 
-## 6. How to run it
+## 6. Repository layout
+
+```text
+app.py           Streamlit entry point (the dashboard)
+run_demo.ps1/.sh one-command demo: create .venv, install, start the dashboard
+cinv/            parsing pipeline: rule parser, LLM parser, flag layer, data models
+dashboard/       dashboard pages, charts and data access
+scripts/         command-line tools: generate data, build the database, parse, evaluate, run queries
+sql/             database schema and the named SQL queries used by the dashboard
+data/            synthetic dataset, gold and blind sets, review labels, LLM cache, pre-built demo database
+eval/            evaluation results (results.md)
+tests/           pytest suite (offline, no API key)
+docs/            design decisions and dashboard screenshots
+```
+
+---
+
+## 7. How to run it
 
 Requires **Python 3.11+** (built on 3.13). **No API key needed**: the dashboard reads the committed, pre-built
 `data/cinv_demo.db`, and the LLM output is cached in `data/llm_cache.json`. The first run creates `.venv`, installs
@@ -264,9 +281,9 @@ bash run_demo.sh        # on macOS, install Python first if needed, e.g. `brew i
 
 ```bash
 python -m pip install -r requirements-dev.txt && python -m pytest
-python generate_data.py && python init_db.py --db data/cinv_demo.db
-python parse_reports.py --text-parser llm --offline --strict --db data/cinv_demo.db   # from data/llm_cache.json
-python evaluate.py --offline                                                          # writes eval/results.md
+python scripts/generate_data.py && python scripts/init_db.py --db data/cinv_demo.db
+python scripts/parse_reports.py --text-parser llm --offline --strict --db data/cinv_demo.db   # from data/llm_cache.json
+python scripts/evaluate.py --offline                                                          # writes eval/results.md
 ```
 
 More detail: [docs/design_decisions.md](docs/design_decisions.md).

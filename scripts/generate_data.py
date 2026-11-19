@@ -28,7 +28,7 @@ from pathlib import Path
 
 SEED = 42
 STUDY_DAYS = 42
-OUT_DIR = Path(__file__).resolve().parent / "data"
+OUT_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # ---------------------------------------------------------------------------
 # Reference data

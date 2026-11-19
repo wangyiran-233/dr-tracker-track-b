@@ -184,7 +184,7 @@ plausibility thresholds, red-flag triggers), e.g. oncology CINV, isotretinoin de
 Generalize `chemo_administrations` to **`care_plan_milestones`** (type, date, protocol step, metadata) so the same
 window queries work for infusions, taper steps or lab check-ins. Add an **export adapter** that writes active
 events as **HL7 FHIR R4** `Observation` / `QuestionnaireResponse` resources, keeping `evidence_span` provenance, for
-Track C EHR delivery. Package `evaluate.py` (rule vs LLM, evidence verification, wrong-and-unflagged) as a reusable
+Track C EHR delivery. Package `scripts/evaluate.py` (rule vs LLM, evidence verification, wrong-and-unflagged) as a reusable
 CLI/CI harness for onboarding new questionnaires.
 
 ## 8. Privacy stance

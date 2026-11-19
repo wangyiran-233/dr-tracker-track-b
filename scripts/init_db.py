@@ -1,12 +1,12 @@
-"""Create the SQLite database from schema.sql and load the synthetic dataset.
+"""Create the SQLite database from sql/schema.sql and load the synthetic dataset.
 
 Loads reference tables and raw reports only. symptom_events,
 medication_intake_events, patient-reported weights and review_flags are
 filled later by the parser.
 
 Usage:
-    .venv\\Scripts\\python.exe init_db.py            # rebuild data/cinv.db
-    .venv\\Scripts\\python.exe init_db.py --db other.db
+    .venv\\Scripts\\python.exe scripts\\init_db.py            # rebuild data/cinv.db
+    .venv\\Scripts\\python.exe scripts\\init_db.py --db other.db
 """
 
 from __future__ import annotations
@@ -16,10 +16,10 @@ import json
 import sqlite3
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = ROOT / "data" / "cinv.db"
 DEFAULT_SEED = ROOT / "data" / "synthetic_dataset.json"
-SCHEMA = ROOT / "schema.sql"
+SCHEMA = ROOT / "sql" / "schema.sql"
 
 
 def build(db_path: Path, seed_path: Path) -> None:

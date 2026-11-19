@@ -154,7 +154,7 @@ def test_rule_parser_output_is_not_run_through_the_layer(con):
 # --- schema and dashboard know every flag type -------------------------------------------------------
 
 def test_schema_and_dashboard_list_every_flag_type():
-    schema = (ROOT / "schema.sql").read_text(encoding="utf-8")
+    schema = (ROOT / "sql" / "schema.sql").read_text(encoding="utf-8")
     from dashboard.views import FLAG_LABELS
     for t in get_args(FlagType):
         assert f"'{t}'" in schema, t

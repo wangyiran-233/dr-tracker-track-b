@@ -19,14 +19,14 @@ from pydantic import ValidationError
 
 from cinv.common import evidence_in_text
 from cinv.models import INFERRED_PRN_TEXT, IntakeEvent, SymptomEvent
-from run_queries import load_queries
+from scripts.run_queries import load_queries
 
 ROOT = Path(__file__).resolve().parent.parent
 # Default: the committed, pre-built demo database (LLM prompt v2, rebuilt from the cache).
 # Override with CINV_DB to point the dashboard at another database, e.g. data/cinv.db.
 DB = Path(os.environ.get("CINV_DB") or ROOT / "data" / "cinv_demo.db")
 EVAL_DIR = ROOT / "eval"
-QUERIES = load_queries(ROOT / "queries.sql")
+QUERIES = load_queries(ROOT / "sql" / "queries.sql")
 
 SEVERITY_LABELS = {0: "none", 1: "mild", 2: "moderate", 3: "severe", 4: "very severe"}
 
@@ -47,10 +47,10 @@ def query(sql: str, params: tuple | list = ()) -> pd.DataFrame:
 def db_ready() -> str | None:
     """Return an error message if the DB is missing or not parsed yet."""
     if not DB.exists():
-        return "Database not found. Run `init_db.py` and `parse_reports.py --text-parser llm --offline` first, or check CINV_DB."
+        return "Database not found. Run `scripts/init_db.py` and `scripts/parse_reports.py --text-parser llm --offline` first, or check CINV_DB."
     n = query("SELECT COUNT(*) AS n FROM symptom_events")["n"].iloc[0]
     if n == 0:
-        return "No parsed events yet. Run `parse_reports.py --text-parser rule` (or `llm`)."
+        return "No parsed events yet. Run `scripts/parse_reports.py --text-parser rule` (or `llm`)."
     return None
 
 
