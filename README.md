@@ -299,7 +299,7 @@ bash run_demo.sh        # on macOS, install Python first if needed, e.g. `brew i
 **Tests and full rebuild** (inside `.venv`, offline)
 
 ```bash
-python -m pip install -r requirements-dev.txt && python -m pytest
+python -m pytest
 python scripts/generate_data.py && python scripts/init_db.py --db data/cinv_demo.db
 python scripts/parse_reports.py --text-parser llm --offline --strict --db data/cinv_demo.db   # from data/llm_cache.json
 python scripts/evaluate.py --offline --db data/cinv_demo.db                                   # writes eval/results.md
